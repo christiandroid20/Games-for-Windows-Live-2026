@@ -112,7 +112,6 @@ internal sealed class Overlay : Window
         profileInitials.Text = WindowsProfileService.GetInitials();
         profileInitials.FontSize = 10; profileInitials.FontWeight = FontWeights.Bold;
         profileInitials.Foreground = B("#FFFFFF"); profileInitials.Background = B("#5DAA37");
-        profileInitials.HorizontalContentAlignment = HorizontalAlignment.Center;
         profileInitials.TextAlignment = TextAlignment.Center;
         avatar.Children.Add(profileImage); avatar.Children.Add(profileInitials);
         profile.Children.Add(new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(16), ClipToBounds = true, Child = avatar, BorderBrush = B("#CFCFCF"), BorderThickness = new Thickness(1) });
