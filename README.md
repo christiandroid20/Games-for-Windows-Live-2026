@@ -53,3 +53,18 @@ The Guide button is not part of the documented public XInput API. It may be unav
 ## License
 
 GPL-3.0-or-later; see LICENSE.
+
+
+## Modular development (pre-DLL stage)
+
+The current branch keeps modules in the same executable while establishing stable contracts before any DLL split:
+
+- `Controllers/ControllerContracts.cs`: controller state, connection and battery models plus `IControllerProvider`.
+- `Controllers/XInputControllerProvider.cs`: the first provider for XInput player slots 1–4 and XInput battery information.
+- `Controllers/ControllerDiagnosticsWindow.cs`: a small diagnostic view for connected XInput slots and battery data.
+- `Profiles/WindowsProfileService.cs`: starts with the Windows display name and best-effort account picture; users can override the Guide display name and image locally. Settings are saved under the current user's Local AppData.
+- `Avatars/AvatarContracts.cs`: an interface boundary for a future offline avatar renderer/catalog.
+
+The universal controller goal is **not complete yet**. This first provider currently reads XInput only. Physical HID/Windows battery enumeration and safe correlation between physical controllers and virtual XInput devices are future providers; the UI must not claim to detect every controller until those are implemented and tested. Battery values that cannot be verified should remain unavailable rather than guessed.
+
+The classic Xbox 360 avatar idea is feasible as an offline feature, but it is separate from Xbox LIVE. The old XNA Gamer Services avatar APIs were designed for Xbox 360 titles; Windows implementations do not render the original avatar system automatically. A faithful implementation would need a compatible offline renderer and legally distributable assets, or a clean-room avatar system inspired by the era. This repository does not bundle Microsoft avatar meshes, clothing, textures, or other proprietary assets.
