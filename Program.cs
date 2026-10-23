@@ -685,6 +685,15 @@ internal static class Program
 
     internal static void LaunchFromBrowser(string target) => Launch(target);
 
+    static void ShowLocalFeatureInfo(string feature)
+    {
+        MessageBox.Show(
+            $"{feature} forma parte de la interfaz recreada, pero esta compilación funciona en modo local y no está conectada a Xbox LIVE. No se mostrarán amigos, mensajes ni estados inventados.",
+            "Games for Windows LIVE 2026 · modo local",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+    }
+
     static void Launch(string target, string args = "")
     {
         try { Process.Start(new ProcessStartInfo(target, args) { UseShellExecute = true }); }
@@ -723,6 +732,13 @@ internal static class Program
                 new Entry("GOG GALAXY", "Abrir GOG GALAXY", () => Launch("goggalaxy://")),
                 new Entry("Explorar archivos de juegos", "Explorador integrado · unidades, carpetas y .exe", () => overlay?.OpenFileBrowser()),
                 new Entry("Carpeta de programas", "Explorar Archivos de programa dentro del Guide", () => overlay?.OpenFileBrowser())
+            }),
+            new Blade("Social", "Amigos y comunicación · modo local", new[]
+            {
+                new Entry("Amigos", "La lista LIVE no está conectada", () => ShowLocalFeatureInfo("Amigos")),
+                new Entry("Mensajes", "Mensajería Xbox LIVE no disponible sin backend", () => ShowLocalFeatureInfo("Mensajes")),
+                new Entry("Grupo / chat de voz", "No hay servicio de grupo conectado", () => ShowLocalFeatureInfo("Grupo y chat de voz")),
+                new Entry("Invitaciones", "Las invitaciones online no se reciben en modo local", () => ShowLocalFeatureInfo("Invitaciones"))
             }),
             new Blade("Medios", "Accesos multimedia de Windows", new[]
             {
