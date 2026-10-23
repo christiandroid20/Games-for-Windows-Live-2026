@@ -1,6 +1,7 @@
 using Microsoft.Win32;
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -36,7 +37,9 @@ internal sealed class Overlay : Window
     readonly ushort[] previous = new ushort[4];
     HwndSource? source;
     int activeBlade, activeRow;
-    bool hotkey1, hotkey2, guideUnavailable, animating;
+    bool hotkey1, hotkey2, guideUnavailable, animating, browsingFiles;
+    string? browserPath;
+    readonly System.Collections.Generic.List<FileSystemInfo> browserItems = new();
 
     static Color C(string s) => (Color)ColorConverter.ConvertFromString(s);
     static SolidColorBrush B(string s) => new(C(s));
@@ -235,6 +238,7 @@ internal sealed class Overlay : Window
     void DrawRows()
     {
         rows.Children.Clear();
+        if (browsingFiles) { DrawBrowserRows(); return; }
         var entries = blades[activeBlade].Entries;
         if (entries.Length == 0) { rows.Children.Add(T("No hay elementos.", 14)); return; }
         activeRow = Math.Clamp(activeRow, 0, entries.Length - 1);
@@ -255,6 +259,97 @@ internal sealed class Overlay : Window
             row.MouseLeftButtonUp += (_, _) => { activeRow = picked; DrawRows(); ExecuteSelected(); };
             rows.Children.Add(row);
         }
+    }
+
+    void OpenFileBrowser()
+    {
+        browsingFiles = true;
+        browserPath = null;
+        activeRow = 0;
+        title.Text = "Explorador de juegos";
+        status.Text = "Selecciona una unidad o carpeta · A/Enter abre · B/Esc vuelve";
+        LoadBrowserItems();
+        DrawRows();
+    }
+
+    void LoadBrowserItems()
+    {
+        browserItems.Clear();
+        try
+        {
+            if (string.IsNullOrWhiteSpace(browserPath))
+            {
+                foreach (var drive in DriveInfo.GetDrives())
+                    if (drive.IsReady) browserItems.Add(new DirectoryInfo(drive.RootDirectory.FullName));
+            }
+            else
+            {
+                var dir = new DirectoryInfo(browserPath);
+                if (dir.Parent != null) browserItems.Add(dir.Parent);
+                foreach (var child in dir.EnumerateDirectories()) browserItems.Add(child);
+                foreach (var file in dir.EnumerateFiles())
+                    if (file.Extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) || file.Extension.Equals(".xex", StringComparison.OrdinalIgnoreCase)) browserItems.Add(file);
+            }
+        }
+        catch (Exception ex) { status.Text = "No se pudo leer la carpeta: " + ex.Message; }
+        activeRow = Math.Clamp(activeRow, 0, Math.Max(0, browserItems.Count - 1));
+    }
+
+    void DrawBrowserRows()
+    {
+        string location = string.IsNullOrWhiteSpace(browserPath) ? "Este equipo · unidades disponibles" : browserPath;
+        title.Text = "Explorar juegos";
+        status.Text = location;
+        if (browserItems.Count == 0) { rows.Children.Add(T("No hay unidades o archivos compatibles en esta ubicación.", 14)); return; }
+        for (int n = 0; n < browserItems.Count; n++)
+        {
+            int picked = n; bool selected = n == activeRow;
+            var item = browserItems[n]; bool directory = item is DirectoryInfo;
+            string name = item.Name;
+            if (string.IsNullOrEmpty(name)) name = item.FullName;
+            string detail = directory ? (string.IsNullOrWhiteSpace(browserPath) ? "Unidad de almacenamiento" : "Carpeta") : item.Extension.Equals(".xex", StringComparison.OrdinalIgnoreCase) ? "Ejecutable Xbox 360 · requiere entorno compatible" : "Aplicación de Windows · .exe";
+            var copy = new StackPanel { Margin = new Thickness(12, 4, 8, 4) };
+            copy.Children.Add(T((directory ? "▸  " : item.Extension.Equals(".xex", StringComparison.OrdinalIgnoreCase) ? "X  " : "▶  ") + name, 15, selected ? "#FFFFFF" : "#303030", selected ? FontWeights.SemiBold : FontWeights.Normal));
+            copy.Children.Add(T(detail, 11, selected ? "#F1F7EC" : "#777777"));
+            var stripe = new Border { Width = 4, Margin = new Thickness(0, 5, 0, 5), Background = B(selected ? "#8FD76C" : "#C8C8C8") };
+            var dock = new DockPanel(); DockPanel.SetDock(stripe, Dock.Left); dock.Children.Add(stripe); dock.Children.Add(copy);
+            var row = new Border { Height = 62, Margin = new Thickness(0, 0, 0, 4), Padding = new Thickness(4, 0, 4, 0), Background = selected ? G("#72BD4D", "#398C28") : G("#FAFAFA", "#E5E5E5"), BorderBrush = B(selected ? "#2D7B20" : "#D1D1D1"), BorderThickness = new Thickness(1), Child = dock, Cursor = Cursors.Hand };
+            row.MouseLeftButtonUp += (_, _) => { activeRow = picked; DrawRows(); ExecuteSelected(); };
+            rows.Children.Add(row);
+        }
+    }
+
+    void ExecuteBrowserSelected()
+    {
+        if (activeRow < 0 || activeRow >= browserItems.Count) return;
+        var item = browserItems[activeRow];
+        if (item is DirectoryInfo directory)
+        {
+            browserPath = directory.FullName;
+            activeRow = 0;
+            LoadBrowserItems(); DrawRows();
+            return;
+        }
+        if (item.Extension.Equals(".xex", StringComparison.OrdinalIgnoreCase))
+        {
+            status.Text = "Los .xex no se ejecutan directamente en Windows; necesitas un entorno compatible.";
+            return;
+        }
+        CloseAnimated();
+        Dispatcher.BeginInvoke(new Action(() => Program.LaunchFromBrowser(item.FullName)), DispatcherPriority.Background);
+    }
+
+    void LeaveFileBrowser()
+    {
+        if (!browsingFiles) { CloseAnimated(); return; }
+        if (!string.IsNullOrWhiteSpace(browserPath))
+        {
+            var parent = Directory.GetParent(browserPath);
+            browserPath = parent?.FullName;
+            activeRow = 0; LoadBrowserItems(); DrawRows();
+            return;
+        }
+        browsingFiles = false; activeRow = 0; DrawTabs(); DrawRows(); SetStatus();
     }
 
     void RegisterHotkeys()
@@ -320,13 +415,14 @@ internal sealed class Overlay : Window
             case Key.Down: Move(0, 1); e.Handled = true; break;
             case Key.Enter: ExecuteSelected(); e.Handled = true; break;
             case Key.Escape:
-            case Key.Back: CloseAnimated(); e.Handled = true; break;
+            case Key.Back: LeaveFileBrowser(); e.Handled = true; break;
         }
     }
 
     void ExecuteSelected()
     {
         if (animating) return;
+        if (browsingFiles) { ExecuteBrowserSelected(); return; }
         var entries = blades[activeBlade].Entries;
         if (activeRow < 0 || activeRow >= entries.Length) return;
         Action action = entries[activeRow].Run;
@@ -452,6 +548,8 @@ internal static class Program
 {
     [DllImport("user32.dll")] static extern bool LockWorkStation();
 
+    internal static void LaunchFromBrowser(string target) => Launch(target);
+
     static void Launch(string target, string args = "")
     {
         try { Process.Start(new ProcessStartInfo(target, args) { UseShellExecute = true }); }
@@ -471,6 +569,7 @@ internal static class Program
     static void Main()
     {
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        Overlay? overlay = null;
         var blades = new[]
         {
             new Blade("Perfil", "Tu sesión local · sin Xbox LIVE", new[]
@@ -486,8 +585,8 @@ internal static class Program
                 new Entry("Steam", "Abrir biblioteca de Steam", () => Launch("steam://open/main")),
                 new Entry("Epic Games Launcher", "Abrir Epic Games", () => Launch("com.epicgames.launcher://")),
                 new Entry("GOG GALAXY", "Abrir GOG GALAXY", () => Launch("goggalaxy://")),
-                new Entry("Agregar / abrir juego…", "Elegir un ejecutable .exe", PickGame),
-                new Entry("Carpeta de programas", "Abrir Archivos de programa", () => Launch("explorer.exe", Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles)))
+                new Entry("Explorar archivos de juegos", "Explorador integrado · unidades, carpetas y .exe", () => overlay?.OpenFileBrowser()),
+                new Entry("Carpeta de programas", "Explorar Archivos de programa dentro del Guide", () => overlay?.OpenFileBrowser())
             }),
             new Blade("Medios", "Accesos multimedia de Windows", new[]
             {
@@ -506,7 +605,7 @@ internal static class Program
                 new Entry("Salir", "Cerrar Games for Windows LIVE 2026", () => Application.Current.Shutdown())
             })
         };
-        var overlay = new Overlay(blades);
+        overlay = new Overlay(blades);
         app.MainWindow = overlay;
         app.Run();
     }
