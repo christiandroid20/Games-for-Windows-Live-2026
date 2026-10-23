@@ -400,7 +400,7 @@ internal sealed class Overlay : Window
     {
         if (!IsVisible || animating) return;
         if (dx != 0) { SelectBlade((activeBlade + dx + blades.Length) % blades.Length, true); return; }
-        int count = blades[activeBlade].Entries.Length;
+        int count = browsingFiles ? browserItems.Count : blades[activeBlade].Entries.Length;
         if (count == 0) return;
         activeRow = (activeRow + dy + count) % count; DrawRows();
     }
