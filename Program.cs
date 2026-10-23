@@ -65,8 +65,10 @@ internal sealed class Overlay : Window
         host.Children.Add(panel); Content = host;
 
         PreviewKeyDown += KeyPressed;
-        SourceInitialized += (_, _) => { source = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle); source?.AddHook(Hook); };
-        Loaded += (_, _) => RegisterHotkeys();
+        IntPtr handle = new WindowInteropHelper(this).EnsureHandle();
+        source = HwndSource.FromHwnd(handle);
+        source?.AddHook(Hook);
+        RegisterHotkeys();
         Closed += (_, _) => Cleanup();
         clockTimer.Tick += (_, _) => clock.Text = DateTime.Now.ToString("h:mm tt");
         padTimer.Tick += (_, _) => PollPad();
@@ -352,7 +354,7 @@ internal static class Program
     [STAThread]
     static void Main()
     {
-        var app = new Application { ShutdownMode = ShutdownMode.OnMainWindowClose };
+        var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         var blades = new[]
         {
             new Blade("Perfil", "Tu sesión local · sin Xbox LIVE", new[]
@@ -387,6 +389,8 @@ internal static class Program
                 new Entry("Salir", "Cerrar Games for Windows LIVE 2026", () => Application.Current.Shutdown())
             })
         };
-        app.Run(new Overlay(blades));
+        var overlay = new Overlay(blades);
+        app.MainWindow = overlay;
+        app.Run();
     }
 }
