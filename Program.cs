@@ -17,7 +17,7 @@ internal sealed class Overlay : Window
 {
     const int Hotkey1 = 1, Hotkey2 = 2, WmHotkey = 0x312;
     const uint ModWin = 8, ModControl = 2, ModAlt = 1, ModNoRepeat = 0x4000;
-    const ushort Guide = 0x0400;
+    const ushort Guide = 0x0400;\n    const int WhKeyboardLl = 13, WmKeyDown = 0x0100, WmSysKeyDown = 0x0104;\n    const int VkG = 0x47, VkLWin = 0x5B, VkRWin = 0x5C;\n    const int LlkhfInjected = 0x10;\n    [StructLayout(LayoutKind.Sequential)] struct KbdLl { public uint VkCode, ScanCode, Flags, Time; public IntPtr ExtraInfo; }\n    delegate IntPtr KeyboardProc(int code, IntPtr wParam, IntPtr lParam);\n    [DllImport("user32.dll", SetLastError = true)] static extern IntPtr SetWindowsHookEx(int idHook, KeyboardProc callback, IntPtr module, uint threadId);\n    [DllImport("user32.dll")] static extern bool UnhookWindowsHookEx(IntPtr hook);\n    [DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr hook, int code, IntPtr wParam, IntPtr lParam);\n    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)] static extern IntPtr GetModuleHandle(string? name);
 
     [DllImport("user32.dll", SetLastError = true)] static extern bool RegisterHotKey(IntPtr h, int id, uint mod, uint key);
     [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr h, int id);
@@ -81,60 +81,71 @@ internal sealed class Overlay : Window
     {
         var outer = new Border
         {
-            Width = 920, Height = 570, Padding = new Thickness(7), CornerRadius = new CornerRadius(3),
-            Background = G("#E5E5E5", "#A8A8A8"), BorderBrush = B("#FFFFFF"), BorderThickness = new Thickness(1),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 26, ShadowDepth = 0, Opacity = .7 }
+            Width = 1000, Height = 590, Padding = new Thickness(7), CornerRadius = new CornerRadius(2),
+            Background = G("#E6E6E6", "#929292"), BorderBrush = B("#FFFFFF"), BorderThickness = new Thickness(1),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 30, ShadowDepth = 0, Opacity = .78 }
         };
         var dock = new DockPanel();
-        var header = new Grid { Height = 54, Margin = new Thickness(0, 0, 0, 6), Background = G("#65B83F", "#2D781E") };
+
+        var header = new Grid { Height = 48, Margin = new Thickness(0, 0, 0, 5), Background = G("#707070", "#333333") };
         header.ColumnDefinitions.Add(new ColumnDefinition());
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var brand = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(15, 0, 0, 0) };
-        brand.Children.Add(T("X", 29, "#FFFFFF", FontWeights.Bold));
-        var words = new StackPanel { Margin = new Thickness(10, 0, 0, 0) };
-        words.Children.Add(T("GAMES FOR WINDOWS", 18, "#FFFFFF", FontWeights.Bold));
-        words.Children.Add(T("LIVE  •  CLASSIC BLADES EDITION", 10, "#E2F3D8", FontWeights.SemiBold));
+        var brand = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(16, 0, 0, 0) };
+        brand.Children.Add(T("X", 28, "#8EDB63", FontWeights.Bold));
+        var words = new StackPanel { Margin = new Thickness(9, 0, 0, 0) };
+        words.Children.Add(T("GAMES FOR WINDOWS", 16, "#FFFFFF", FontWeights.Bold));
+        words.Children.Add(T("LIVE  ·  CLASSIC GUIDE", 9, "#CFCFCF", FontWeights.SemiBold));
         brand.Children.Add(words); header.Children.Add(brand);
-        var right = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 16, 0) };
-        right.Children.Add(T("LOCAL OVERLAY", 10, "#E2F3D8", FontWeights.SemiBold));
-        clock.FontSize = 16; clock.Foreground = B("#FFFFFF"); clock.Margin = new Thickness(18, 0, 0, 0);
+        var right = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 18, 0) };
+        right.Children.Add(T("LOCAL PROFILE", 10, "#D6D6D6", FontWeights.SemiBold));
+        clock.FontSize = 15; clock.Foreground = B("#FFFFFF"); clock.Margin = new Thickness(16, 0, 0, 0);
         right.Children.Add(clock); Grid.SetColumn(right, 1); header.Children.Add(right);
         DockPanel.SetDock(header, Dock.Top); dock.Children.Add(header);
 
-        var footer = new StackPanel { Orientation = Orientation.Horizontal, Height = 48, Background = G("#505050", "#292929"), VerticalAlignment = VerticalAlignment.Center };
-        footer.Children.Add(Hint("A", "#4BAA35", "Seleccionar"));
-        footer.Children.Add(Hint("B", "#D54A42", "Cerrar"));
-        footer.Children.Add(Hint("LB / RB", "#D6D6D6", "Cambiar blade"));
-        footer.Children.Add(Hint("↑ ↓", "#D6D6D6", "Mover selección"));
-        footer.Children.Add(T("  Win + G  ·  Guide", 12, "#E6E6E6"));
-        DockPanel.SetDock(footer, Dock.Bottom); dock.Children.Add(footer);
-
-        var main = new Grid();
-        main.ColumnDefinitions.Add(new ColumnDefinition());
-        main.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(310) });
-        var left = new Grid { Margin = new Thickness(10, 12, 14, 12) };
-        left.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        left.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        left.RowDefinitions.Add(new RowDefinition());
-        left.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        title.FontSize = 26; title.FontWeight = FontWeights.Light; title.Foreground = B("#353535");
-        left.Children.Add(title);
-        subtitle.FontSize = 12; subtitle.Foreground = B("#666666"); subtitle.Margin = new Thickness(1, 0, 0, 13);
-        Grid.SetRow(subtitle, 1); left.Children.Add(subtitle);
-        var frame = new Border { Background = B("#F3F3F3"), BorderBrush = B("#B6B6B6"), BorderThickness = new Thickness(1), Padding = new Thickness(8), Child = rows };
-        Grid.SetRow(frame, 2); left.Children.Add(frame);
-        status.FontSize = 11; status.Foreground = B("#5A5A5A"); status.Margin = new Thickness(1, 10, 0, 0);
-        Grid.SetRow(status, 3); left.Children.Add(status);
-        main.Children.Add(left);
-
-        var rail = new Grid { Margin = new Thickness(0, 4, 0, 4) };
+        // The original Blades navigation is a broad, coloured strip, not a narrow
+        // column of rotated labels. Each tab has its own Xbox-era accent colour.
+        var rail = new Grid { Height = 76, Margin = new Thickness(0, 0, 0, 5) };
         for (int n = 0; n < blades.Length; n++)
         {
             rail.ColumnDefinitions.Add(new ColumnDefinition());
             var tab = MakeBlade(blades[n], n);
             bladeTabs[n] = tab; Grid.SetColumn(tab, n); rail.Children.Add(tab);
         }
-        Grid.SetColumn(rail, 1); main.Children.Add(rail); dock.Children.Add(main); outer.Child = dock;
+        DockPanel.SetDock(rail, Dock.Top); dock.Children.Add(rail);
+
+        var footer = new StackPanel { Orientation = Orientation.Horizontal, Height = 42, Background = G("#494949", "#242424"), VerticalAlignment = VerticalAlignment.Center };
+        footer.Children.Add(Hint("A", "#5DAA37", "Seleccionar"));
+        footer.Children.Add(Hint("B", "#C94942", "Volver / cerrar"));
+        footer.Children.Add(Hint("LB / RB", "#D6D6D6", "Cambiar blade"));
+        footer.Children.Add(Hint("↑ ↓", "#D6D6D6", "Navegar"));
+        footer.Children.Add(T("  Win + G  ·  Guide", 11, "#E8E8E8"));
+        DockPanel.SetDock(footer, Dock.Bottom); dock.Children.Add(footer);
+
+        var content = new Grid { Margin = new Thickness(12, 8, 12, 10) };
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        content.RowDefinitions.Add(new RowDefinition());
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var heading = new Grid { Margin = new Thickness(3, 0, 3, 9) };
+        heading.ColumnDefinitions.Add(new ColumnDefinition());
+        heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        title.FontSize = 25; title.FontWeight = FontWeights.Light; title.Foreground = B("#292929");
+        heading.Children.Add(title);
+        var liveStatus = T("●  OFFLINE  ·  LOCAL", 10, "#4C842D", FontWeights.SemiBold);
+        Grid.SetColumn(liveStatus, 1); heading.Children.Add(liveStatus);
+        content.Children.Add(heading);
+
+        var frame = new Border
+        {
+            Background = G("#F9F9F9", "#D9D9D9"), BorderBrush = B("#8B8B8B"),
+            BorderThickness = new Thickness(1), Padding = new Thickness(8),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 5, ShadowDepth = 1, Opacity = .16 },
+            Child = rows
+        };
+        Grid.SetRow(frame, 1); content.Children.Add(frame);
+        status.FontSize = 10; status.Foreground = B("#505050"); status.Margin = new Thickness(3, 8, 0, 0);
+        Grid.SetRow(status, 2); content.Children.Add(status);
+        dock.Children.Add(content);
+        outer.Child = dock;
         return outer;
     }
 
@@ -150,16 +161,27 @@ internal sealed class Overlay : Window
 
     Border MakeBlade(Blade blade, int index)
     {
-        var label = T(blade.Name.ToUpperInvariant(), 14, "#F4F4F4", FontWeights.SemiBold);
-        label.LayoutTransform = new RotateTransform(90);
-        label.HorizontalAlignment = HorizontalAlignment.Center; label.VerticalAlignment = VerticalAlignment.Center;
+        string[] accents = { "#67B53B", "#287DB2", "#8057A8", "#C94B42", "#D49A26", "#388F87" };
+        var accent = accents[index % accents.Length];
+        var label = T(blade.Name.ToUpperInvariant(), 13, "#FFFFFF", FontWeights.Bold);
+        label.HorizontalAlignment = HorizontalAlignment.Center;
+        label.VerticalAlignment = VerticalAlignment.Center;
         label.TextAlignment = TextAlignment.Center;
-        var accent = new Border { Height = 7, VerticalAlignment = VerticalAlignment.Top, Background = G("#A5E57E", "#4B9F2B"), Visibility = Visibility.Collapsed };
-        var layers = new Grid(); layers.Children.Add(label); layers.Children.Add(accent);
+        var sub = T(blade.Subtitle, 9, "#E9E9E9");
+        sub.HorizontalAlignment = HorizontalAlignment.Center;
+        sub.TextAlignment = TextAlignment.Center;
+        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 2, 4, 5) };
+        stack.Children.Add(label);
+        stack.Children.Add(sub);
+        var marker = new Border { Height = 5, VerticalAlignment = VerticalAlignment.Bottom, Background = B(accent), Visibility = Visibility.Collapsed };
+        var layers = new Grid();
+        layers.Children.Add(stack); layers.Children.Add(marker);
         var tab = new Border
         {
-            Margin = new Thickness(index == 0 ? 0 : -2, index == 0 ? 0 : 12, 0, index == 0 ? 0 : 12),
-            Background = G("#656565", "#292929"), BorderBrush = B("#858585"), BorderThickness = new Thickness(1, 1, 0, 1), Child = layers, Cursor = Cursors.Hand
+            Margin = new Thickness(index == 0 ? 0 : 2, index == 0 ? 0 : 7, 2, 0),
+            Background = G(index == 0 ? "#7CC84E" : accent, index == 0 ? "#347D22" : "#333333"),
+            BorderBrush = B("#D9D9D9"), BorderThickness = new Thickness(1, 1, 1, 0),
+            Child = layers, Cursor = Cursors.Hand
         };
         tab.MouseLeftButtonUp += (_, _) => SelectBlade(index, true);
         return tab;
@@ -167,20 +189,34 @@ internal sealed class Overlay : Window
 
     void DrawTabs()
     {
+        string[] accents = { "#67B53B", "#287DB2", "#8057A8", "#C94B42", "#D49A26", "#388F87" };
         for (int n = 0; n < blades.Length; n++)
         {
             bool selected = n == activeBlade;
             var tab = bladeTabs[n];
-            tab.Margin = new Thickness(selected ? 0 : -2, selected ? 0 : 12, 0, selected ? 0 : 12);
-            tab.Background = selected ? G("#F3F3F3", "#BEBEBE") : G("#656565", "#292929");
-            tab.BorderBrush = B(selected ? "#FFFFFF" : "#858585");
+            string accent = accents[n % accents.Length];
+            tab.Margin = new Thickness(selected ? 0 : 2, selected ? 0 : 7, 2, 0);
+            tab.Background = selected ? G("#F8F8F8", "#BEBEBE") : G(accent, "#333333");
+            tab.BorderBrush = B(selected ? "#FFFFFF" : "#777777");
             if (tab.Child is Grid layers)
             {
                 ((Border)layers.Children[1]).Visibility = selected ? Visibility.Visible : Visibility.Collapsed;
-                if (layers.Children[0] is TextBlock label) { label.Foreground = B(selected ? "#303030" : "#F4F4F4"); label.FontSize = selected ? 16 : 14; }
+                if (layers.Children[0] is StackPanel stack)
+                {
+                    if (stack.Children[0] is TextBlock label)
+                    {
+                        label.Foreground = B(selected ? "#292929" : "#FFFFFF");
+                        label.FontSize = selected ? 15 : 13;
+                    }
+                    if (stack.Children[1] is TextBlock sub)
+                    {
+                        sub.Foreground = B(selected ? "#5A5A5A" : "#E9E9E9");
+                        sub.Text = selected ? blades[n].Subtitle : "";
+                    }
+                }
             }
         }
-        title.Text = blades[activeBlade].Name; subtitle.Text = blades[activeBlade].Subtitle;
+        title.Text = blades[activeBlade].Name;
     }
 
     void DrawRows()
@@ -213,7 +249,7 @@ internal sealed class Overlay : Window
         IntPtr hwnd = new WindowInteropHelper(this).Handle;
         hotkey1 = RegisterHotKey(hwnd, Hotkey1, ModWin | ModNoRepeat, 0x47);
         hotkey2 = RegisterHotKey(hwnd, Hotkey2, ModControl | ModAlt | ModNoRepeat, 0x47);
-        if (!hotkey1) status.Text = "Win+G está ocupado; prueba Ctrl+Alt+G.";
+        if (!hotkey2) status.Text = "Atajo alternativo ocupado; el hook global intenta capturar Win+G.";
     }
 
     IntPtr Hook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -324,7 +360,7 @@ internal sealed class Overlay : Window
     void Cleanup()
     {
         clockTimer.Stop(); padTimer.Stop();
-        if (source != null) source.RemoveHook(Hook);
+        if (source != null) source.RemoveHook(Hook);\n        if (keyboardHook != IntPtr.Zero) UnhookWindowsHookEx(keyboardHook);
         IntPtr hwnd = new WindowInteropHelper(this).Handle;
         if (hotkey1) UnregisterHotKey(hwnd, Hotkey1);
         if (hotkey2) UnregisterHotKey(hwnd, Hotkey2);
