@@ -82,87 +82,101 @@ internal sealed class Overlay : Window
 
     Border BuildPanel()
     {
+        // Compact Xbox 360 Guide overlay: a gold left rail over the dimmed desktop/game.
         var outer = new Border
         {
-            Width = 1000, Height = 590, Padding = new Thickness(7), CornerRadius = new CornerRadius(2),
-            Background = G("#E6E6E6", "#929292"), BorderBrush = B("#FFFFFF"), BorderThickness = new Thickness(1),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 30, ShadowDepth = 0, Opacity = .78 }
+            Width = 548, Height = 724, Padding = new Thickness(0), CornerRadius = new CornerRadius(3, 34, 34, 3),
+            Background = G("#F4C31D", "#D8A91D"), BorderBrush = B("#655323"), BorderThickness = new Thickness(2),
+            ClipToBounds = true,
+            Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 28, ShadowDepth = 0, Opacity = .78 }
         };
-        var dock = new DockPanel();
+        var shell = new Grid();
+        shell.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(188) });
+        shell.ColumnDefinitions.Add(new ColumnDefinition());
+        outer.Child = shell;
 
-        var header = new Grid { Height = 48, Margin = new Thickness(0, 0, 0, 5), Background = G("#707070", "#333333") };
-        header.ColumnDefinitions.Add(new ColumnDefinition());
-        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var brand = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(16, 0, 0, 0) };
-        brand.Children.Add(T("X", 28, "#8EDB63", FontWeights.Bold));
-        var words = new StackPanel { Margin = new Thickness(9, 0, 0, 0) };
-        words.Children.Add(T("GAMES FOR WINDOWS", 16, "#FFFFFF", FontWeights.Bold));
-        words.Children.Add(T("LIVE  ·  CLASSIC GUIDE", 9, "#CFCFCF", FontWeights.SemiBold));
-        brand.Children.Add(words); header.Children.Add(brand);
-        var right = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 18, 0) };
-        var profile = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0), Cursor = Cursors.Hand };
-        var avatar = new Grid { Width = 32, Height = 32, Margin = new Thickness(0, 0, 8, 0) };
-        profileImage.Width = 32; profileImage.Height = 32; profileImage.Stretch = Stretch.UniformToFill;
+        var goldRail = new Grid { Background = G("#F4C31D", "#D8A91D") };
+        var texture = new StackPanel { Opacity = .11, IsHitTestVisible = false };
+        for (int i = 0; i < 17; i++)
+        {
+            var line = new TextBlock { Text = "   ✕      ✕      ✕", FontFamily = new FontFamily("Segoe UI Symbol"), FontSize = 21, Foreground = B("#805F00"), Margin = new Thickness(0, 5, 0, 3) };
+            texture.Children.Add(line);
+        }
+        goldRail.Children.Add(texture);
+        var railContent = new DockPanel { Margin = new Thickness(13, 14, 10, 12) };
+        var railTop = new StackPanel();
+        railTop.Children.Add(T("XBOX 360", 12, "#604A08", FontWeights.Bold));
+        railTop.Children.Add(T("GUIDE", 26, "#342A0C", FontWeights.Bold));
+        railTop.Children.Add(T("●  OFFLINE", 10, "#51420F", FontWeights.SemiBold));
+        var profile = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 16, 0, 12), Cursor = Cursors.Hand };
+        var avatar = new Grid { Width = 42, Height = 42, Margin = new Thickness(0, 0, 8, 0) };
+        profileImage.Width = 42; profileImage.Height = 42; profileImage.Stretch = Stretch.UniformToFill;
         profileImage.Visibility = Visibility.Collapsed;
         profileInitials.Text = WindowsProfileService.GetInitials();
-        profileInitials.FontSize = 10; profileInitials.FontWeight = FontWeights.Bold;
+        profileInitials.FontSize = 11; profileInitials.FontWeight = FontWeights.Bold;
         profileInitials.Foreground = B("#FFFFFF"); profileInitials.Background = B("#5DAA37");
         profileInitials.TextAlignment = TextAlignment.Center;
         avatar.Children.Add(profileImage); avatar.Children.Add(profileInitials);
-        profile.Children.Add(new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(16), ClipToBounds = true, Child = avatar, BorderBrush = B("#CFCFCF"), BorderThickness = new Thickness(1) });
-        profileName.FontSize = 12; profileName.Foreground = B("#FFFFFF"); profileName.VerticalAlignment = VerticalAlignment.Center;
-        profileName.MaxWidth = 180; profileName.TextTrimming = TextTrimming.CharacterEllipsis;
-        profile.Children.Add(profileName);
+        profile.Children.Add(new Border { Width = 42, Height = 42, CornerRadius = new CornerRadius(21), ClipToBounds = true, Child = avatar, BorderBrush = B("#FFF0A1"), BorderThickness = new Thickness(2) });
+        var profileText = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        profileName.FontSize = 13; profileName.Foreground = B("#352A0B"); profileName.FontWeight = FontWeights.Bold;
+        profileName.MaxWidth = 105; profileName.TextTrimming = TextTrimming.CharacterEllipsis;
+        profileText.Children.Add(profileName);
+        profileText.Children.Add(T("0 G", 11, "#665314"));
+        profile.Children.Add(profileText);
         profile.MouseLeftButtonUp += (_, _) => EditProfile();
-        right.Children.Add(profile);
-        clock.FontSize = 15; clock.Foreground = B("#FFFFFF"); clock.Margin = new Thickness(16, 0, 0, 0);
-        right.Children.Add(clock); Grid.SetColumn(right, 1); header.Children.Add(right);
-        DockPanel.SetDock(header, Dock.Top); dock.Children.Add(header);
+        railTop.Children.Add(profile);
+        clock.FontSize = 19; clock.Foreground = B("#342A0C"); clock.Margin = new Thickness(0, 0, 0, 13);
+        railTop.Children.Add(clock);
+        DockPanel.SetDock(railTop, Dock.Top); railContent.Children.Add(railTop);
 
-        // The original Blades navigation is a broad, coloured strip, not a narrow
-        // column of rotated labels. Each tab has its own Xbox-era accent colour.
-        var rail = new Grid { Height = 76, Margin = new Thickness(0, 0, 0, 5) };
+        var railFooter = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
+        railFooter.Children.Add(T("A  Seleccionar", 10, "#493A0D", FontWeights.SemiBold));
+        railFooter.Children.Add(T("B  Volver", 10, "#493A0D", FontWeights.SemiBold));
+        railFooter.Children.Add(T("X  Opciones", 10, "#493A0D", FontWeights.SemiBold));
+        DockPanel.SetDock(railFooter, Dock.Bottom); railContent.Children.Add(railFooter);
+        var nav = new StackPanel { Margin = new Thickness(0, 3, 0, 0) };
         for (int n = 0; n < blades.Length; n++)
         {
-            rail.ColumnDefinitions.Add(new ColumnDefinition());
             var tab = MakeBlade(blades[n], n);
-            bladeTabs[n] = tab; Grid.SetColumn(tab, n); rail.Children.Add(tab);
+            tab.Height = 45; tab.Margin = new Thickness(0, 2, 0, 2);
+            tab.BorderThickness = new Thickness(1);
+            bladeTabs[n] = tab;
+            nav.Children.Add(tab);
         }
-        DockPanel.SetDock(rail, Dock.Top); dock.Children.Add(rail);
+        var navScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = nav };
+        DockPanel.SetDock(navScroll, Dock.Top); railContent.Children.Add(navScroll);
+        goldRail.Children.Add(railContent);
+        Grid.SetColumn(goldRail, 0); shell.Children.Add(goldRail);
 
-        var footer = new StackPanel { Orientation = Orientation.Horizontal, Height = 42, Background = G("#494949", "#242424"), VerticalAlignment = VerticalAlignment.Center };
-        footer.Children.Add(Hint("A", "#5DAA37", "Seleccionar"));
-        footer.Children.Add(Hint("B", "#C94942", "Volver / cerrar"));
-        footer.Children.Add(Hint("LB / RB", "#D6D6D6", "Cambiar blade"));
-        footer.Children.Add(Hint("↑ ↓", "#D6D6D6", "Navegar"));
-        footer.Children.Add(T("  Win + G  ·  Guide", 11, "#E8E8E8"));
-        DockPanel.SetDock(footer, Dock.Bottom); dock.Children.Add(footer);
-
-        var content = new Grid { Margin = new Thickness(12, 8, 12, 10) };
-        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        content.RowDefinitions.Add(new RowDefinition());
-        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var heading = new Grid { Margin = new Thickness(3, 0, 3, 9) };
-        heading.ColumnDefinitions.Add(new ColumnDefinition());
-        heading.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        title.FontSize = 25; title.FontWeight = FontWeights.Light; title.Foreground = B("#292929");
-        heading.Children.Add(title);
-        var liveStatus = T("●  OFFLINE  ·  LOCAL", 10, "#4C842D", FontWeights.SemiBold);
-        Grid.SetColumn(liveStatus, 1); heading.Children.Add(liveStatus);
-        content.Children.Add(heading);
+        var content = new DockPanel { Background = G("#242424", "#101010") };
+        var header = new Grid { Height = 58, Margin = new Thickness(13, 13, 13, 8) };
+        header.ColumnDefinitions.Add(new ColumnDefinition());
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        title.FontSize = 23; title.FontWeight = FontWeights.SemiBold; title.Foreground = B("#FFFFFF");
+        header.Children.Add(title);
+        clock.FontSize = 13; clock.Foreground = B("#F3D45C");
+        Grid.SetColumn(clock, 1); header.Children.Add(clock);
+        DockPanel.SetDock(header, Dock.Top); content.Children.Add(header);
 
         var frame = new Border
         {
-            Background = G("#F9F9F9", "#D9D9D9"), BorderBrush = B("#8B8B8B"),
-            BorderThickness = new Thickness(1), Padding = new Thickness(8),
-            Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 5, ShadowDepth = 1, Opacity = .16 },
+            Margin = new Thickness(12, 0, 12, 8), Padding = new Thickness(7),
+            Background = G("#383838", "#202020"), BorderBrush = B("#5B5B5B"),
+            BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(2),
             Child = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = rows }
         };
-        Grid.SetRow(frame, 1); content.Children.Add(frame);
-        status.FontSize = 10; status.Foreground = B("#505050"); status.Margin = new Thickness(3, 8, 0, 0);
-        Grid.SetRow(status, 2); content.Children.Add(status);
-        dock.Children.Add(content);
-        outer.Child = dock;
+        content.Children.Add(frame);
+        status.FontSize = 10; status.Foreground = B("#D5D5D5"); status.Margin = new Thickness(14, 0, 12, 10);
+        DockPanel.SetDock(status, Dock.Bottom); content.Children.Add(status);
+        var bottom = new Border { Height = 38, Background = B("#181818"), Padding = new Thickness(10, 0, 8, 0) };
+        var bottomRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        bottomRow.Children.Add(Hint("A", "#6ABF40", "Elegir"));
+        bottomRow.Children.Add(Hint("B", "#C94942", "Atrás"));
+        bottomRow.Children.Add(T("  Win + G", 10, "#D7D7D7"));
+        bottom.Child = bottomRow;
+        DockPanel.SetDock(bottom, Dock.Bottom); content.Children.Add(bottom);
+        Grid.SetColumn(content, 1); shell.Children.Add(content);
         return outer;
     }
 
@@ -311,8 +325,10 @@ internal sealed class Overlay : Window
 
     public void OpenFileBrowser()
     {
+        // Always start at the drive list, never at a stale path from a previous visit.
         browsingFiles = true;
         browserPath = null;
+        browserItems.Clear();
         activeRow = 0;
         title.Text = "Explorador de juegos";
         status.Text = "Selecciona una unidad o carpeta · A/Enter abre · B/Esc vuelve";
@@ -346,9 +362,25 @@ internal sealed class Overlay : Window
     void DrawBrowserRows()
     {
         string location = string.IsNullOrWhiteSpace(browserPath) ? "Este equipo · unidades disponibles" : browserPath;
-        title.Text = "Explorar juegos";
-        status.Text = location;
-        if (browserItems.Count == 0) { rows.Children.Add(T("No hay unidades o archivos compatibles en esta ubicación.", 14)); return; }
+        title.Text = "Explorador de juegos";
+
+        var toolbar = new WrapPanel { Margin = new Thickness(2, 0, 2, 10) };
+        var back = new Button { Content = "← Carpeta anterior", Padding = new Thickness(8, 5, 8, 5), Margin = new Thickness(0, 0, 6, 5), IsEnabled = !string.IsNullOrWhiteSpace(browserPath) };
+        back.Click += (_, _) => GoBrowserParent();
+        var root = new Button { Content = "↺ Inicio / unidades", Padding = new Thickness(8, 5, 8, 5), Margin = new Thickness(0, 0, 6, 5) };
+        root.Click += (_, _) => ResetBrowserPath();
+        toolbar.Children.Add(back); toolbar.Children.Add(root);
+        rows.Children.Add(toolbar);
+        var pathLabel = T(location, 10, "#F3D45C", FontWeights.SemiBold);
+        pathLabel.Margin = new Thickness(3, 0, 3, 9);
+        pathLabel.TextWrapping = TextWrapping.Wrap;
+        rows.Children.Add(pathLabel);
+
+        if (browserItems.Count == 0)
+        {
+            rows.Children.Add(T("No hay unidades o archivos compatibles en esta ubicación.", 13, "#FFFFFF"));
+            return;
+        }
         for (int n = 0; n < browserItems.Count; n++)
         {
             int picked = n; bool selected = n == activeRow;
@@ -356,15 +388,33 @@ internal sealed class Overlay : Window
             string name = item.Name;
             if (string.IsNullOrEmpty(name)) name = item.FullName;
             string detail = directory ? (string.IsNullOrWhiteSpace(browserPath) ? "Unidad de almacenamiento" : "Carpeta") : item.Extension.Equals(".xex", StringComparison.OrdinalIgnoreCase) ? "Ejecutable Xbox 360 · requiere entorno compatible" : "Aplicación de Windows · .exe";
-            var copy = new StackPanel { Margin = new Thickness(12, 4, 8, 4) };
-            copy.Children.Add(T((directory ? "▸  " : item.Extension.Equals(".xex", StringComparison.OrdinalIgnoreCase) ? "X  " : "▶  ") + name, 15, selected ? "#FFFFFF" : "#303030", selected ? FontWeights.SemiBold : FontWeights.Normal));
-            copy.Children.Add(T(detail, 11, selected ? "#F1F7EC" : "#777777"));
-            var stripe = new Border { Width = 4, Margin = new Thickness(0, 5, 0, 5), Background = B(selected ? "#8FD76C" : "#C8C8C8") };
+            var copy = new StackPanel { Margin = new Thickness(10, 3, 7, 3) };
+            copy.Children.Add(T((directory ? "📁  " : item.Extension.Equals(".xex", StringComparison.OrdinalIgnoreCase) ? "X  " : "▶  ") + name, 13, selected ? "#FFFFFF" : "#E2E2E2", selected ? FontWeights.SemiBold : FontWeights.Normal));
+            copy.Children.Add(T(detail, 10, selected ? "#F8EAA6" : "#B8B8B8"));
+            var stripe = new Border { Width = 3, Margin = new Thickness(0, 4, 0, 4), Background = B(selected ? "#F4C31D" : "#777777") };
             var dock = new DockPanel(); DockPanel.SetDock(stripe, Dock.Left); dock.Children.Add(stripe); dock.Children.Add(copy);
-            var row = new Border { Height = 62, Margin = new Thickness(0, 0, 0, 4), Padding = new Thickness(4, 0, 4, 0), Background = selected ? G("#72BD4D", "#398C28") : G("#FAFAFA", "#E5E5E5"), BorderBrush = B(selected ? "#2D7B20" : "#D1D1D1"), BorderThickness = new Thickness(1), Child = dock, Cursor = Cursors.Hand };
+            var row = new Border { MinHeight = 51, Margin = new Thickness(0, 0, 0, 4), Padding = new Thickness(4, 0, 4, 0), Background = selected ? G("#8A7626", "#5C4D19") : G("#424242", "#303030"), BorderBrush = B(selected ? "#F4C31D" : "#555555"), BorderThickness = new Thickness(1), Child = dock, Cursor = Cursors.Hand };
             row.MouseLeftButtonUp += (_, _) => { activeRow = picked; DrawRows(); ExecuteSelected(); };
             rows.Children.Add(row);
         }
+    }
+
+    void GoBrowserParent()
+    {
+        if (string.IsNullOrWhiteSpace(browserPath)) return;
+        var parent = Directory.GetParent(browserPath);
+        browserPath = parent?.FullName;
+        activeRow = 0;
+        LoadBrowserItems();
+        DrawRows();
+    }
+
+    void ResetBrowserPath()
+    {
+        browserPath = null;
+        activeRow = 0;
+        LoadBrowserItems();
+        DrawRows();
     }
 
     void ExecuteBrowserSelected()
@@ -392,9 +442,7 @@ internal sealed class Overlay : Window
         if (!browsingFiles) { CloseAnimated(); return; }
         if (!string.IsNullOrWhiteSpace(browserPath))
         {
-            var parent = Directory.GetParent(browserPath);
-            browserPath = parent?.FullName;
-            activeRow = 0; LoadBrowserItems(); DrawRows();
+            GoBrowserParent();
             return;
         }
         browsingFiles = false; activeRow = 0; DrawTabs(); DrawRows(); SetStatus();
