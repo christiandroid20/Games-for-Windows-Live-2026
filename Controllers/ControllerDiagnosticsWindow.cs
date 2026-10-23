@@ -46,7 +46,9 @@ internal static class ControllerDiagnosticsWindow
                 ControllerConnectionKind.Wireless => "inalámbrico",
                 _ => "conexión desconocida"
             };
-            string charge = battery.IsAvailable
+            string charge = battery.Connection == ControllerConnectionKind.Wired
+                ? "batería no aplicable (cableado)"
+                : battery.IsAvailable
                 ? battery.Level switch
                 {
                     ControllerBatteryLevel.Empty => "batería vacía",
