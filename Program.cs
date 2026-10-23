@@ -211,7 +211,7 @@ internal sealed class Overlay : Window
         RefreshProfileHeader();
     }
 
-    void EditTheme()
+    public void EditTheme()
     {
         var dialog = new Window
         {
@@ -234,7 +234,7 @@ internal sealed class Overlay : Window
         custom.ToolTip = "Color hexadecimal, por ejemplo #FF6A00";
         layout.Children.Add(custom);
         layout.Children.Add(T("El modo sistema lee el color de énfasis de Windows. El fondo de pantalla no siempre proporciona una paleta fiable.", 11, "#555555"));
-        var save = new Button { Content = "Guardar tema", Padding = new Thickness(10, 7), Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+        var save = new Button { Content = "Guardar tema", Padding = new Thickness(10, 7, 10, 7), Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
         save.Click += (_, _) =>
         {
             if (modes.SelectedIndex == 3 && !System.Text.RegularExpressions.Regex.IsMatch(custom.Text.Trim(), "^#([0-9a-fA-F]{6})$"))
