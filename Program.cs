@@ -42,8 +42,9 @@ internal sealed class Overlay : Window
     readonly System.Collections.Generic.List<FileSystemInfo> browserItems = new();
 
     static Color C(string s) => (Color)ColorConverter.ConvertFromString(s);
-    static SolidColorBrush B(string s) => new(C(s));
-    static LinearGradientBrush G(string a, string b) => new(C(a), C(b), 90);
+    static string Accent => GuideTheme.CurrentAccent;
+    static SolidColorBrush B(string s) => new(C(GuideTheme.ResolveColor(s)));
+    static LinearGradientBrush G(string a, string b) => new(C(GuideTheme.ResolveColor(a)), C(GuideTheme.ResolveColor(b)), 90);
     static TextBlock T(string s, double size, string color = "#292929", FontWeight? weight = null) => new()
     {
         Text = s, FontSize = size, Foreground = B(color), FontWeight = weight ?? FontWeights.Normal,
@@ -72,7 +73,7 @@ internal sealed class Overlay : Window
         source?.AddHook(Hook);
         RegisterHotkeys();
         Closed += (_, _) => Cleanup();
-        clockTimer.Tick += (_, _) => clock.Text = DateTime.Now.ToString("h:mm tt");
+        clockTimer.Tick += (_, _) => { clock.Text = DateTime.Now.ToString("h:mm tt"); if (GuideTheme.RefreshAccent()) RefreshTheme(); };
         padTimer.Tick += (_, _) => PollPad();
         clockTimer.Start(); padTimer.Start();
         clock.Text = DateTime.Now.ToString("h:mm tt");
@@ -201,6 +202,53 @@ internal sealed class Overlay : Window
         };
         tab.MouseLeftButtonUp += (_, _) => SelectBlade(index, true);
         return tab;
+    }
+
+    void RefreshTheme()
+    {
+        DrawTabs();
+        DrawRows();
+        RefreshProfileHeader();
+    }
+
+    void EditTheme()
+    {
+        var dialog = new Window
+        {
+            Title = "Tema del Guide",
+            Width = 420, Height = 300, Owner = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize, Background = B("#EEEEEE")
+        };
+        var layout = new StackPanel { Margin = new Thickness(20) };
+        layout.Children.Add(T("Personalización del Guide", 20, "#292929", FontWeights.SemiBold));
+        layout.Children.Add(T("Color de énfasis y apariencia", 12, "#555555"));
+        var modes = new ComboBox { Margin = new Thickness(0, 10, 0, 10), Padding = new Thickness(6), FontSize = 14 };
+        modes.Items.Add("Clásico Xbox 360 (dorado)");
+        modes.Items.Add("Igual al sistema (color de énfasis)");
+        modes.Items.Add("Aleatorio al abrir");
+        modes.Items.Add("Personalizado");
+        modes.SelectedIndex = GuideTheme.Mode;
+        layout.Children.Add(modes);
+        var custom = new TextBox { Text = GuideTheme.CustomAccent, Margin = new Thickness(0, 0, 0, 10), Padding = new Thickness(6), FontSize = 14 };
+        custom.ToolTip = "Color hexadecimal, por ejemplo #FF6A00";
+        layout.Children.Add(custom);
+        layout.Children.Add(T("El modo sistema lee el color de énfasis de Windows. El fondo de pantalla no siempre proporciona una paleta fiable.", 11, "#555555"));
+        var save = new Button { Content = "Guardar tema", Padding = new Thickness(10, 7), Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+        save.Click += (_, _) =>
+        {
+            if (modes.SelectedIndex == 3 && !System.Text.RegularExpressions.Regex.IsMatch(custom.Text.Trim(), "^#([0-9a-fA-F]{6})$"))
+            {
+                MessageBox.Show(dialog, "Escribe un color hexadecimal válido, por ejemplo #FF6A00.", "Tema", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            GuideTheme.SetMode(modes.SelectedIndex, custom.Text.Trim());
+            RefreshTheme();
+            dialog.Close();
+        };
+        layout.Children.Add(save);
+        dialog.Content = layout;
+        dialog.ShowDialog();
     }
 
     void DrawTabs()
@@ -577,6 +625,7 @@ internal static class Program
                 new Entry("Cuenta de Windows", "Abrir la configuración del perfil de Windows", () => Launch("ms-settings:yourinfo")),
                 new Entry("Configuración", "Abrir configuración de Windows", () => Launch("ms-settings:")),
                 new Entry("Diagnóstico de mandos", "Jugadores XInput y batería disponible", () => ControllerDiagnosticsWindow.Show(null)),
+                new Entry("Tema del Guide", "Color clásico, aleatorio, sistema o personalizado", () => overlay?.EditTheme()),
                 new Entry("Explorador de archivos", "Acceder a unidades y carpetas", () => Launch("explorer.exe")),
                 new Entry("Bloquear equipo", "Volver a la pantalla de bloqueo", () => LockWorkStation())
             }),
