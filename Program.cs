@@ -18,15 +18,6 @@ internal sealed class Overlay : Window
     const int Hotkey1 = 1, Hotkey2 = 2, WmHotkey = 0x312;
     const uint ModWin = 8, ModControl = 2, ModAlt = 1, ModNoRepeat = 0x4000;
     const ushort Guide = 0x0400;
-    const int WhKeyboardLl = 13, WmKeyDown = 0x0100, WmSysKeyDown = 0x0104;
-    const int VkG = 0x47, VkLWin = 0x5B, VkRWin = 0x5C;
-    const int LlkhfInjected = 0x10;
-    [StructLayout(LayoutKind.Sequential)] struct KbdLl { public uint VkCode, ScanCode, Flags, Time; public IntPtr ExtraInfo; }
-    delegate IntPtr KeyboardProc(int code, IntPtr wParam, IntPtr lParam);
-    [DllImport("user32.dll", SetLastError = true)] static extern IntPtr SetWindowsHookEx(int idHook, KeyboardProc callback, IntPtr module, uint threadId);
-    [DllImport("user32.dll")] static extern bool UnhookWindowsHookEx(IntPtr hook);
-    [DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr hook, int code, IntPtr wParam, IntPtr lParam);
-    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)] static extern IntPtr GetModuleHandle(string? name);
 
     [DllImport("user32.dll", SetLastError = true)] static extern bool RegisterHotKey(IntPtr h, int id, uint mod, uint key);
     [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr h, int id);
@@ -451,7 +442,6 @@ internal sealed class Overlay : Window
     {
         clockTimer.Stop(); padTimer.Stop();
         if (source != null) source.RemoveHook(Hook);
-        if (keyboardHook != IntPtr.Zero) UnhookWindowsHookEx(keyboardHook);
         IntPtr hwnd = new WindowInteropHelper(this).Handle;
         if (hotkey1) UnregisterHotKey(hwnd, Hotkey1);
         if (hotkey2) UnregisterHotKey(hwnd, Hotkey2);
