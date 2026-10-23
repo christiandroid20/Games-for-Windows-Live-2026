@@ -11,6 +11,41 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 
+internal sealed class GuideChrome : FrameworkElement
+{
+    public Brush Gold { get; set; } = new LinearGradientBrush(Color.FromRgb(244,195,29), Color.FromRgb(216,169,29), 0);
+    protected override void OnRender(DrawingContext dc)
+    {
+        base.OnRender(dc);
+        double w = ActualWidth, h = ActualHeight;
+        if (w < 40 || h < 80) return;
+        double edge = Math.Min(w - 25, 245);
+        var geometry = new StreamGeometry();
+        using (var ctx = geometry.Open())
+        {
+            ctx.BeginFigure(new Point(0, 0), true, true);
+            ctx.LineTo(new Point(edge - 12, 0), true, false);
+            ctx.BezierTo(new Point(edge + 9, h * .12), new Point(edge - 20, h * .21), new Point(edge + 2, h * .33), true, false);
+            ctx.BezierTo(new Point(edge + 13, h * .45), new Point(edge - 14, h * .53), new Point(edge - 2, h * .66), true, false);
+            ctx.BezierTo(new Point(edge + 4, h * .81), new Point(edge - 27, h * .90), new Point(edge - 12, h), true, false);
+            ctx.LineTo(new Point(0, h), true, false);
+        }
+        geometry.Freeze();
+        dc.DrawGeometry(Gold, new Pen(new SolidColorBrush(Color.FromRgb(102, 80, 17)), 2), geometry);
+        dc.PushClip(geometry);
+        var pattern = new Pen(new SolidColorBrush(Color.FromArgb(24, 118, 83, 0)), 1.5);
+        for (double y = 12; y < h; y += 43)
+        for (double x = 12; x < edge - 25; x += 39)
+        {
+            var p = new Point(x + (((int)(y / 43) % 2) * 14), y);
+            dc.DrawEllipse(null, pattern, p, 8, 8);
+            dc.DrawLine(pattern, new Point(p.X - 5, p.Y - 5), new Point(p.X + 5, p.Y + 5));
+            dc.DrawLine(pattern, new Point(p.X + 5, p.Y - 5), new Point(p.X - 5, p.Y + 5));
+        }
+        dc.Pop();
+    }
+}
+
 internal sealed record Entry(string Name, string Detail, Action Run);
 internal sealed record Blade(string Name, string Subtitle, Entry[] Entries);
 
@@ -85,25 +120,21 @@ internal sealed class Overlay : Window
         // Compact Xbox 360 Guide overlay: a gold left rail over the dimmed desktop/game.
         var outer = new Border
         {
-            Width = 548, Height = 724, Padding = new Thickness(0), CornerRadius = new CornerRadius(3, 34, 34, 3),
-            Background = G("#F4C31D", "#D8A91D"), BorderBrush = B("#655323"), BorderThickness = new Thickness(2),
+            Width = 610, Height = 724, Padding = new Thickness(0), CornerRadius = new CornerRadius(3, 26, 26, 3),
+            Background = B("#202020"), BorderBrush = B("#655323"), BorderThickness = new Thickness(1),
             ClipToBounds = true,
             Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 28, ShadowDepth = 0, Opacity = .78 }
         };
         var shell = new Grid();
-        shell.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(188) });
+        shell.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(218) });
         shell.ColumnDefinitions.Add(new ColumnDefinition());
         outer.Child = shell;
 
-        var goldRail = new Grid { Background = G("#F4C31D", "#D8A91D") };
-        var texture = new StackPanel { Opacity = .11, IsHitTestVisible = false };
-        for (int i = 0; i < 17; i++)
-        {
-            var line = new TextBlock { Text = "   ✕      ✕      ✕", FontFamily = new FontFamily("Segoe UI Symbol"), FontSize = 21, Foreground = B("#805F00"), Margin = new Thickness(0, 5, 0, 3) };
-            texture.Children.Add(line);
-        }
-        goldRail.Children.Add(texture);
-        var railContent = new DockPanel { Margin = new Thickness(13, 14, 10, 12) };
+        // The original Guide's signature is a curved gold silhouette, not a rectangular sidebar.
+        var chrome = new GuideChrome { Width = 270, HorizontalAlignment = HorizontalAlignment.Left, IsHitTestVisible = false };
+        shell.Children.Add(chrome);
+        var goldRail = new Grid { Background = Brushes.Transparent };
+        var railContent = new DockPanel { Margin = new Thickness(13, 14, 24, 12) };
         var railTop = new StackPanel();
         railTop.Children.Add(T("XBOX 360", 12, "#604A08", FontWeights.Bold));
         railTop.Children.Add(T("GUIDE", 26, "#342A0C", FontWeights.Bold));
@@ -149,7 +180,7 @@ internal sealed class Overlay : Window
         goldRail.Children.Add(railContent);
         Grid.SetColumn(goldRail, 0); shell.Children.Add(goldRail);
 
-        var content = new DockPanel { Background = G("#242424", "#101010") };
+        var content = new DockPanel { Background = G("#242424", "#101010"), Margin = new Thickness(0) };
         var header = new Grid { Height = 58, Margin = new Thickness(13, 13, 13, 8) };
         header.ColumnDefinitions.Add(new ColumnDefinition());
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
