@@ -203,7 +203,6 @@ internal sealed class Overlay : Window
                 Background = selected ? G("#72BD4D", "#398C28") : G("#FAFAFA", "#E5E5E5"),
                 BorderBrush = B(selected ? "#2D7B20" : "#D1D1D1"), BorderThickness = new Thickness(1), Child = dock, Cursor = Cursors.Hand
             };
-            row.MouseEnter += (_, _) => { activeRow = picked; DrawRows(); };
             row.MouseLeftButtonUp += (_, _) => { activeRow = picked; DrawRows(); ExecuteSelected(); };
             rows.Children.Add(row);
         }
