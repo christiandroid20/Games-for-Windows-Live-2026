@@ -155,7 +155,7 @@ internal sealed class Overlay : Window
             Background = G("#F9F9F9", "#D9D9D9"), BorderBrush = B("#8B8B8B"),
             BorderThickness = new Thickness(1), Padding = new Thickness(8),
             Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 5, ShadowDepth = 1, Opacity = .16 },
-            Child = rows
+            Child = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = rows }
         };
         Grid.SetRow(frame, 1); content.Children.Add(frame);
         status.FontSize = 10; status.Foreground = B("#505050"); status.Margin = new Thickness(3, 8, 0, 0);
