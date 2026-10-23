@@ -1,0 +1,26 @@
+name: Build Windows overlay
+
+on:
+  push:
+    branches:
+      - main
+      - "redesign/**"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Restore
+        run: dotnet restore BladesOverlay.csproj
+      - name: Build Release
+        run: dotnet build BladesOverlay.csproj --configuration Release --no-restore
