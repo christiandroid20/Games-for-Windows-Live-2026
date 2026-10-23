@@ -155,8 +155,8 @@ internal sealed class Overlay : Window
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         title.FontSize = 23; title.FontWeight = FontWeights.SemiBold; title.Foreground = B("#FFFFFF");
         header.Children.Add(title);
-        clock.FontSize = 13; clock.Foreground = B("#F3D45C");
-        Grid.SetColumn(clock, 1); header.Children.Add(clock);
+        var liveMark = T("● LOCAL", 10, "#F3D45C", FontWeights.SemiBold);
+        Grid.SetColumn(liveMark, 1); header.Children.Add(liveMark);
         DockPanel.SetDock(header, Dock.Top); content.Children.Add(header);
 
         var frame = new Border
