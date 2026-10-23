@@ -475,9 +475,9 @@ internal static class Program
         {
             new Blade("Perfil", "Tu sesión local · sin Xbox LIVE", new[]
             {
-                new Entry(WindowsProfileService.GetDisplayName(), "Perfil local de Windows", () => Launch("ms-settings:yourinfo")),
+                new Entry("Cuenta de Windows", "Abrir la configuración del perfil de Windows", () => Launch("ms-settings:yourinfo")),
                 new Entry("Configuración", "Abrir configuración de Windows", () => Launch("ms-settings:")),
-                new Entry("Diagnóstico de mandos", "Jugadores XInput y batería disponible", () => ControllerDiagnosticsWindow.Show(Application.Current.MainWindow)),
+                new Entry("Diagnóstico de mandos", "Jugadores XInput y batería disponible", () => ControllerDiagnosticsWindow.Show(null)),
                 new Entry("Explorador de archivos", "Acceder a unidades y carpetas", () => Launch("explorer.exe")),
                 new Entry("Bloquear equipo", "Volver a la pantalla de bloqueo", () => LockWorkStation())
             }),
