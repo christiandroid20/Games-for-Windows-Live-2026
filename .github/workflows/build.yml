@@ -16,11 +16,22 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Set up .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
+
       - name: Restore
         run: dotnet restore BladesOverlay.csproj
-      - name: Build Release
-        run: dotnet build BladesOverlay.csproj --configuration Release --no-restore
+
+      - name: Publish standalone Windows x64 executable
+        run: dotnet publish BladesOverlay.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o ./publish
+
+      - name: Upload downloadable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: BladesOverlay-win-x64
+          path: publish/
+          if-no-files-found: error
+          retention-days: 14
