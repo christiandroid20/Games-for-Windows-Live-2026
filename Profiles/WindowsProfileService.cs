@@ -68,6 +68,13 @@ internal static class WindowsProfileService
         Save(settings);
     }
 
+    public static void ResetDisplayName()
+    {
+        var settings = Load();
+        settings.DisplayName = null;
+        Save(settings);
+    }
+
     public static string? GetAvatarPath()
     {
         var saved = Load().CustomAvatarPath;
