@@ -17,15 +17,23 @@ internal sealed class Overlay : Window
 {
     const int Hotkey1 = 1, Hotkey2 = 2, WmHotkey = 0x312;
     const uint ModWin = 8, ModControl = 2, ModAlt = 1, ModNoRepeat = 0x4000;
-    const ushort Guide = 0x0400;\n    const int WhKeyboardLl = 13, WmKeyDown = 0x0100, WmSysKeyDown = 0x0104;\n    const int VkG = 0x47, VkLWin = 0x5B, VkRWin = 0x5C;\n    const int LlkhfInjected = 0x10;\n    [StructLayout(LayoutKind.Sequential)] struct KbdLl { public uint VkCode, ScanCode, Flags, Time; public IntPtr ExtraInfo; }\n    delegate IntPtr KeyboardProc(int code, IntPtr wParam, IntPtr lParam);\n    [DllImport("user32.dll", SetLastError = true)] static extern IntPtr SetWindowsHookEx(int idHook, KeyboardProc callback, IntPtr module, uint threadId);\n    [DllImport("user32.dll")] static extern bool UnhookWindowsHookEx(IntPtr hook);\n    [DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr hook, int code, IntPtr wParam, IntPtr lParam);\n    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)] static extern IntPtr GetModuleHandle(string? name);
+    const ushort Guide = 0x0400;
+    const int WhKeyboardLl = 13, WmKeyDown = 0x0100, WmSysKeyDown = 0x0104;
+    const int VkG = 0x47, VkLWin = 0x5B, VkRWin = 0x5C;
+    const int LlkhfInjected = 0x10;
+    [StructLayout(LayoutKind.Sequential)] struct KbdLl { public uint VkCode, ScanCode, Flags, Time; public IntPtr ExtraInfo; }
+    delegate IntPtr KeyboardProc(int code, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll", SetLastError = true)] static extern IntPtr SetWindowsHookEx(int idHook, KeyboardProc callback, IntPtr module, uint threadId);
+    [DllImport("user32.dll")] static extern bool UnhookWindowsHookEx(IntPtr hook);
+    [DllImport("user32.dll")] static extern IntPtr CallNextHookEx(IntPtr hook, int code, IntPtr wParam, IntPtr lParam);
+    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)] static extern IntPtr GetModuleHandle(string? name);
 
     [DllImport("user32.dll", SetLastError = true)] static extern bool RegisterHotKey(IntPtr h, int id, uint mod, uint key);
     [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr h, int id);
     [DllImport("user32.dll")] static extern bool LockWorkStation();
-    [DllImport("xinput1_4.dll", EntryPoint = "#100", CallingConvention = CallingConvention.StdCall)]
-    static extern int XInputGetStateEx(int index, out XState state);
-    [StructLayout(LayoutKind.Sequential)]
-    struct XState { public uint Packet; public ushort Buttons; public byte LT, RT; public short LX, LY, RX, RY; }
+    readonly IControllerProvider controllerProvider = new XInputControllerProvider();
+    readonly TextBlock profileName = new(), profileInitials = new();
+    readonly Image profileImage = new();
 
     readonly Blade[] blades;
     readonly Border[] bladeTabs;
@@ -74,7 +82,7 @@ internal sealed class Overlay : Window
         padTimer.Tick += (_, _) => PollPad();
         clockTimer.Start(); padTimer.Start();
         clock.Text = DateTime.Now.ToString("h:mm tt");
-        DrawTabs(); DrawRows(); SetStatus();
+        DrawTabs(); DrawRows(); RefreshProfileHeader(); SetStatus();
     }
 
     Border BuildPanel()
@@ -97,7 +105,22 @@ internal sealed class Overlay : Window
         words.Children.Add(T("LIVE  ·  CLASSIC GUIDE", 9, "#CFCFCF", FontWeights.SemiBold));
         brand.Children.Add(words); header.Children.Add(brand);
         var right = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 18, 0) };
-        right.Children.Add(T("LOCAL PROFILE", 10, "#D6D6D6", FontWeights.SemiBold));
+        var profile = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0), Cursor = Cursors.Hand };
+        var avatar = new Grid { Width = 32, Height = 32, Margin = new Thickness(0, 0, 8, 0) };
+        profileImage.Width = 32; profileImage.Height = 32; profileImage.Stretch = Stretch.UniformToFill;
+        profileImage.Visibility = Visibility.Collapsed;
+        profileInitials.Text = WindowsProfileService.GetInitials();
+        profileInitials.FontSize = 10; profileInitials.FontWeight = FontWeights.Bold;
+        profileInitials.Foreground = B("#FFFFFF"); profileInitials.Background = B("#5DAA37");
+        profileInitials.HorizontalContentAlignment = HorizontalAlignment.Center;
+        profileInitials.TextAlignment = TextAlignment.Center;
+        avatar.Children.Add(profileImage); avatar.Children.Add(profileInitials);
+        profile.Children.Add(new Border { Width = 32, Height = 32, CornerRadius = new CornerRadius(16), ClipToBounds = true, Child = avatar, BorderBrush = B("#CFCFCF"), BorderThickness = new Thickness(1) });
+        profileName.FontSize = 12; profileName.Foreground = B("#FFFFFF"); profileName.VerticalAlignment = VerticalAlignment.Center;
+        profileName.MaxWidth = 180; profileName.TextTrimming = TextTrimming.CharacterEllipsis;
+        profile.Children.Add(profileName);
+        profile.MouseLeftButtonUp += (_, _) => EditProfile();
+        right.Children.Add(profile);
         clock.FontSize = 15; clock.Foreground = B("#FFFFFF"); clock.Margin = new Thickness(16, 0, 0, 0);
         right.Children.Add(clock); Grid.SetColumn(right, 1); header.Children.Add(right);
         DockPanel.SetDock(header, Dock.Top); dock.Children.Add(header);
@@ -328,7 +351,7 @@ internal sealed class Overlay : Window
         {
             for (int user = 0; user < 4; user++)
             {
-                if (XInputGetStateEx(user, out var state) != 0) { previous[user] = 0; continue; }
+                if (!controllerProvider.TryGetState(user, out var state)) { previous[user] = 0; continue; }
                 ushort pressed = (ushort)(state.Buttons & ~previous[user]); previous[user] = state.Buttons;
                 if ((pressed & Guide) != 0) { Toggle(); return; }
                 if (!IsVisible || animating) continue;
@@ -346,6 +369,74 @@ internal sealed class Overlay : Window
         catch (BadImageFormatException) { DisableGuide(); }
     }
 
+    void RefreshProfileHeader()
+    {
+        profileName.Text = WindowsProfileService.GetDisplayName();
+        profileInitials.Text = WindowsProfileService.GetInitials();
+        string? path = WindowsProfileService.GetAvatarPath();
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(path) && System.IO.File.Exists(path))
+            {
+                profileImage.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(path, UriKind.Absolute));
+                profileImage.Visibility = Visibility.Visible;
+                profileInitials.Visibility = Visibility.Collapsed;
+                return;
+            }
+        }
+        catch { }
+        profileImage.Source = null;
+        profileImage.Visibility = Visibility.Collapsed;
+        profileInitials.Visibility = Visibility.Visible;
+    }
+
+    void EditProfile()
+    {
+        var editor = new Window
+        {
+            Title = "Perfil local",
+            Width = 440,
+            Height = 270,
+            Owner = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            Background = B("#E7E7E7")
+        };
+        var layout = new StackPanel { Margin = new Thickness(20) };
+        layout.Children.Add(T("Tu perfil del Guide", 20, "#292929", FontWeights.SemiBold));
+        layout.Children.Add(T("Nombre visible (inicialmente el de Windows)", 11, "#555555"));
+        var nameBox = new TextBox { Text = WindowsProfileService.GetDisplayName(), Margin = new Thickness(0, 6, 0, 12), Padding = new Thickness(7), FontSize = 14 };
+        layout.Children.Add(nameBox);
+
+        var buttons = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Left };
+        var chooseAvatar = new Button { Content = "Cambiar imagen…", Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 6, 6) };
+        chooseAvatar.Click += (_, _) =>
+        {
+            var picker = new OpenFileDialog { Title = "Selecciona la imagen del perfil", Filter = "Imágenes (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|Todos los archivos (*.*)|*.*", CheckFileExists = true };
+            if (picker.ShowDialog(editor) == true)
+            {
+                try { WindowsProfileService.SetAvatar(picker.FileName); RefreshProfileHeader(); }
+                catch (Exception ex) { MessageBox.Show(editor, ex.Message, "No se pudo cambiar la imagen", MessageBoxButton.OK, MessageBoxImage.Warning); }
+            }
+        };
+        var windowsAvatar = new Button { Content = "Usar imagen de Windows", Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 6, 6) };
+        windowsAvatar.Click += (_, _) => { WindowsProfileService.ResetAvatar(); RefreshProfileHeader(); };
+        var windowsName = new Button { Content = "Nombre de Windows", Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 6, 6) };
+        windowsName.Click += (_, _) => { WindowsProfileService.ResetDisplayName(); nameBox.Text = WindowsProfileService.GetWindowsDisplayName(); RefreshProfileHeader(); };
+        buttons.Children.Add(chooseAvatar); buttons.Children.Add(windowsAvatar); buttons.Children.Add(windowsName);
+        layout.Children.Add(buttons);
+
+        var save = new Button { Content = "Guardar nombre", Padding = new Thickness(12, 6, 12, 6), HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0), MinWidth = 120 };
+        save.Click += (_, _) =>
+        {
+            try { WindowsProfileService.SetDisplayName(nameBox.Text); RefreshProfileHeader(); editor.Close(); }
+            catch (Exception ex) { MessageBox.Show(editor, ex.Message, "Perfil", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        };
+        layout.Children.Add(save);
+        editor.Content = layout;
+        editor.ShowDialog();
+    }
+
     void DisableGuide()
     {
         guideUnavailable = true;
@@ -360,7 +451,8 @@ internal sealed class Overlay : Window
     void Cleanup()
     {
         clockTimer.Stop(); padTimer.Stop();
-        if (source != null) source.RemoveHook(Hook);\n        if (keyboardHook != IntPtr.Zero) UnhookWindowsHookEx(keyboardHook);
+        if (source != null) source.RemoveHook(Hook);
+        if (keyboardHook != IntPtr.Zero) UnhookWindowsHookEx(keyboardHook);
         IntPtr hwnd = new WindowInteropHelper(this).Handle;
         if (hotkey1) UnregisterHotKey(hwnd, Hotkey1);
         if (hotkey2) UnregisterHotKey(hwnd, Hotkey2);
@@ -394,8 +486,9 @@ internal static class Program
         {
             new Blade("Perfil", "Tu sesión local · sin Xbox LIVE", new[]
             {
-                new Entry(Environment.UserName, "Perfil local de Windows", () => Launch("ms-settings:yourinfo")),
+                new Entry(WindowsProfileService.GetDisplayName(), "Perfil local de Windows", () => Launch("ms-settings:yourinfo")),
                 new Entry("Configuración", "Abrir configuración de Windows", () => Launch("ms-settings:")),
+                new Entry("Diagnóstico de mandos", "Jugadores XInput y batería disponible", () => ControllerDiagnosticsWindow.Show(Application.Current.MainWindow)),
                 new Entry("Explorador de archivos", "Acceder a unidades y carpetas", () => Launch("explorer.exe")),
                 new Entry("Bloquear equipo", "Volver a la pantalla de bloqueo", () => LockWorkStation())
             }),
