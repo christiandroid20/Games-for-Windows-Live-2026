@@ -33,9 +33,9 @@ internal sealed class Overlay : Window
     readonly TextBlock title = new(), subtitle = new(), clock = new(), status = new();
     readonly TranslateTransform slide = new();
     readonly DispatcherTimer clockTimer = new() { Interval = TimeSpan.FromSeconds(1) };
-    readonly DispatcherTimer padTimer = new() { Interval = TimeSpan.FromMilliseconds(55), Priority = DispatcherPriority.Input };
+    readonly DispatcherTimer padTimer = new(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(55) };
     readonly ushort[] previous = new ushort[4];
-    HwndSource source;
+    HwndSource? source;
     int activeBlade, activeRow;
     bool hotkey1, hotkey2, guideUnavailable, animating;
 
