@@ -261,7 +261,7 @@ internal sealed class Overlay : Window
         }
     }
 
-    void OpenFileBrowser()
+    public void OpenFileBrowser()
     {
         browsingFiles = true;
         browserPath = null;
