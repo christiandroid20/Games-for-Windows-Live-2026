@@ -120,44 +120,44 @@ internal sealed class Overlay : Window
         // Compact Xbox 360 Guide overlay: a gold left rail over the dimmed desktop/game.
         var outer = new Border
         {
-            Width = 690, Height = 700, Padding = new Thickness(0), CornerRadius = new CornerRadius(3, 24, 24, 3),
+            Width = 610, Height = 455, Padding = new Thickness(0), CornerRadius = new CornerRadius(3, 18, 18, 3),
             Background = B("#17191B"), BorderBrush = B("#6F5A19"), BorderThickness = new Thickness(1),
             ClipToBounds = true,
             Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 28, ShadowDepth = 0, Opacity = .78 }
         };
         var shell = new Grid();
-        shell.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(238) });
+        shell.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(205) });
         shell.ColumnDefinitions.Add(new ColumnDefinition());
         outer.Child = shell;
 
         // The original Guide's signature is a curved gold silhouette, not a rectangular sidebar.
-        var chrome = new GuideChrome { Width = 282, HorizontalAlignment = HorizontalAlignment.Left, IsHitTestVisible = false };
+        var chrome = new GuideChrome { Width = 232, HorizontalAlignment = HorizontalAlignment.Left, IsHitTestVisible = false };
         shell.Children.Add(chrome);
         var goldRail = new Grid { Background = Brushes.Transparent };
-        var railContent = new DockPanel { Margin = new Thickness(13, 14, 24, 12) };
+        var railContent = new DockPanel { Margin = new Thickness(10, 10, 18, 9) };
         var railTop = new StackPanel();
-        railTop.Children.Add(T("XBOX 360", 13, "#604A08", FontWeights.Bold));
-        railTop.Children.Add(T("GUIDE", 29, "#342A0C", FontWeights.Bold));
-        railTop.Children.Add(T("QUICK MENU", 9, "#68500B", FontWeights.SemiBold));
-        var profile = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 16, 0, 12), Cursor = Cursors.Hand };
-        var avatar = new Grid { Width = 42, Height = 42, Margin = new Thickness(0, 0, 8, 0) };
-        profileImage.Width = 42; profileImage.Height = 42; profileImage.Stretch = Stretch.UniformToFill;
+        railTop.Children.Add(T("XBOX 360", 11, "#604A08", FontWeights.Bold));
+        railTop.Children.Add(T("GUIDE", 24, "#342A0C", FontWeights.Bold));
+        railTop.Children.Add(T("IN-GAME MENU", 8, "#68500B", FontWeights.SemiBold));
+        var profile = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 9, 0, 8), Cursor = Cursors.Hand };
+        var avatar = new Grid { Width = 34, Height = 34, Margin = new Thickness(0, 0, 7, 0) };
+        profileImage.Width = 34; profileImage.Height = 34; profileImage.Stretch = Stretch.UniformToFill;
         profileImage.Visibility = Visibility.Collapsed;
         profileInitials.Text = WindowsProfileService.GetInitials();
         profileInitials.FontSize = 11; profileInitials.FontWeight = FontWeights.Bold;
         profileInitials.Foreground = B("#FFFFFF"); profileInitials.Background = B("#5DAA37");
         profileInitials.TextAlignment = TextAlignment.Center;
         avatar.Children.Add(profileImage); avatar.Children.Add(profileInitials);
-        profile.Children.Add(new Border { Width = 42, Height = 42, CornerRadius = new CornerRadius(21), ClipToBounds = true, Child = avatar, BorderBrush = B("#FFF0A1"), BorderThickness = new Thickness(2) });
+        profile.Children.Add(new Border { Width = 34, Height = 34, CornerRadius = new CornerRadius(17), ClipToBounds = true, Child = avatar, BorderBrush = B("#FFF0A1"), BorderThickness = new Thickness(2) });
         var profileText = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        profileName.FontSize = 13; profileName.Foreground = B("#352A0B"); profileName.FontWeight = FontWeights.Bold;
+        profileName.FontSize = 11; profileName.Foreground = B("#352A0B"); profileName.FontWeight = FontWeights.Bold;
         profileName.MaxWidth = 105; profileName.TextTrimming = TextTrimming.CharacterEllipsis;
         profileText.Children.Add(profileName);
         profileText.Children.Add(T("0 G", 11, "#665314"));
         profile.Children.Add(profileText);
         profile.MouseLeftButtonUp += (_, _) => EditProfile();
         railTop.Children.Add(profile);
-        clock.FontSize = 19; clock.Foreground = B("#342A0C"); clock.Margin = new Thickness(0, 0, 0, 13);
+        clock.FontSize = 16; clock.Foreground = B("#342A0C"); clock.Margin = new Thickness(0, 0, 0, 13);
         railTop.Children.Add(clock);
         DockPanel.SetDock(railTop, Dock.Top); railContent.Children.Add(railTop);
 
@@ -170,7 +170,7 @@ internal sealed class Overlay : Window
         for (int n = 0; n < blades.Length; n++)
         {
             var tab = MakeBlade(blades[n], n);
-            tab.Height = 45; tab.Margin = new Thickness(0, 2, 0, 2);
+            tab.Height = 35; tab.Margin = new Thickness(0, 1, 0, 1);
             tab.BorderThickness = new Thickness(1);
             bladeTabs[n] = tab;
             nav.Children.Add(tab);
@@ -181,12 +181,12 @@ internal sealed class Overlay : Window
         Grid.SetColumn(goldRail, 0); shell.Children.Add(goldRail);
 
         var content = new DockPanel { Background = G("#202326", "#101113"), Margin = new Thickness(0) };
-        var header = new Grid { Height = 82, Margin = new Thickness(19, 13, 17, 7) };
+        var header = new Grid { Height = 62, Margin = new Thickness(15, 9, 13, 5) };
         header.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         header.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         header.ColumnDefinitions.Add(new ColumnDefinition());
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        title.FontSize = 25; title.FontWeight = FontWeights.SemiBold; title.Foreground = B("#FFFFFF");
+        title.FontSize = 21; title.FontWeight = FontWeights.SemiBold; title.Foreground = B("#FFFFFF");
         header.Children.Add(title);
         var liveMark = T("● LOCAL", 10, "#F3D45C", FontWeights.SemiBold);
         Grid.SetColumn(liveMark, 1); header.Children.Add(liveMark);
@@ -198,15 +198,15 @@ internal sealed class Overlay : Window
 
         var frame = new Border
         {
-            Margin = new Thickness(13, 0, 13, 9), Padding = new Thickness(8),
+            Margin = new Thickness(10, 0, 10, 7), Padding = new Thickness(6),
             Background = G("#292C2F", "#1D1F21"), BorderBrush = B("#414448"),
             BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(2),
             Child = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = rows }
         };
         content.Children.Add(frame);
-        status.FontSize = 10; status.Foreground = B("#D5D5D5"); status.Margin = new Thickness(14, 0, 12, 10);
+        status.FontSize = 9; status.Foreground = B("#D5D5D5"); status.Margin = new Thickness(14, 0, 12, 10);
         DockPanel.SetDock(status, Dock.Bottom); content.Children.Add(status);
-        var bottom = new Border { Height = 43, Background = B("#151719"), BorderBrush = B("#35383B"), BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(7, 0, 8, 0) };
+        var bottom = new Border { Height = 34, Background = B("#151719"), BorderBrush = B("#35383B"), BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(7, 0, 8, 0) };
         var bottomRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         bottomRow.Children.Add(Hint("A", "#6ABF40", "Elegir"));
         bottomRow.Children.Add(Hint("B", "#C94942", "Atrás"));
@@ -346,14 +346,14 @@ internal sealed class Overlay : Window
         for (int n = 0; n < entries.Length; n++)
         {
             int picked = n; bool selected = n == activeRow;
-            var copy = new StackPanel { Margin = new Thickness(12, 4, 8, 4) };
-            copy.Children.Add(T(entries[n].Name, 15, "#FFFFFF", selected ? FontWeights.SemiBold : FontWeights.Normal));
-            copy.Children.Add(T(entries[n].Detail, 11, selected ? "#F2FFE9" : "#B5BDC2"));
+            var copy = new StackPanel { Margin = new Thickness(9, 3, 6, 3) };
+            copy.Children.Add(T(entries[n].Name, 13, "#FFFFFF", selected ? FontWeights.SemiBold : FontWeights.Normal));
+            copy.Children.Add(T(entries[n].Detail, 10, selected ? "#F2FFE9" : "#B5BDC2"));
             var stripe = new Border { Width = 4, Margin = new Thickness(0, 5, 0, 5), Background = B(selected ? "#D9F5C9" : "#626A70") };
             var dock = new DockPanel(); DockPanel.SetDock(stripe, Dock.Left); dock.Children.Add(stripe); dock.Children.Add(copy);
             var row = new Border
             {
-                Height = 66, Margin = new Thickness(0, 0, 0, 5), Padding = new Thickness(5, 0, 5, 0),
+                Height = 53, Margin = new Thickness(0, 0, 0, 3), Padding = new Thickness(4, 0, 4, 0),
                 Background = selected ? G("#6ABF40", "#3B8E2B") : G("#363A3D", "#292C2F"),
                 BorderBrush = B(selected ? "#A4E17F" : "#454A4E"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(2), Child = dock, Cursor = Cursors.Hand
             };
