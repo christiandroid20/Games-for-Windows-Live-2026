@@ -3,7 +3,15 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
-    <Nullable>disable</Nullable>
-    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>GamesForWindowsLive2026</AssemblyName>
+    <RootNamespace>GamesForWindowsLive2026</RootNamespace>
+    <Version>0.2.0</Version>
+    <Authors>ChristyGaming18</Authors>
+    <Description>Lightweight classic Blades-style game overlay for Windows 10 and Windows 11.</Description>
+    <Platforms>AnyCPU</Platforms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
   </PropertyGroup>
 </Project>

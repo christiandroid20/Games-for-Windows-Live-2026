@@ -1,0 +1,37 @@
+name: Build Windows overlay
+
+on:
+  push:
+    branches:
+      - main
+      - "redesign/**"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore Windows x64 runtime assets
+        run: dotnet restore BladesOverlay.csproj --runtime win-x64
+
+      - name: Publish standalone Windows x64 executable
+        run: dotnet publish BladesOverlay.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o ./publish
+
+      - name: Upload downloadable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: BladesOverlay-win-x64
+          path: publish/
+          if-no-files-found: error
+          retention-days: 14
