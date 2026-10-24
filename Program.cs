@@ -46,7 +46,7 @@ internal sealed class GuideChrome : FrameworkElement
     }
 }
 
-internal sealed record Entry(string Name, string Detail, Action Run);
+internal sealed record Entry(string Name, string Detail, Action Run, bool CloseOverlay = true);
 internal sealed record Blade(string Name, string Subtitle, Entry[] Entries);
 
 internal sealed class Overlay : Window
@@ -560,9 +560,14 @@ internal sealed class Overlay : Window
         if (browsingFiles) { ExecuteBrowserSelected(); return; }
         var entries = blades[activeBlade].Entries;
         if (activeRow < 0 || activeRow >= entries.Length) return;
-        Action action = entries[activeRow].Run;
-        CloseAnimated();
-        Dispatcher.BeginInvoke(action, DispatcherPriority.Background);
+        Entry entry = entries[activeRow];
+
+        // Internal views must keep the same overlay window alive. Hiding the window
+        // before OpenFileBrowser() leaves browsingFiles=true while the Guide is hidden.
+        if (entry.CloseOverlay)
+            CloseAnimated();
+
+        Dispatcher.BeginInvoke(entry.Run, DispatcherPriority.Background);
     }
 
     void PollPad()
@@ -730,8 +735,8 @@ internal static class Program
                 new Entry("Steam", "Abrir biblioteca de Steam", () => Launch("steam://open/main")),
                 new Entry("Epic Games Launcher", "Abrir Epic Games", () => Launch("com.epicgames.launcher://")),
                 new Entry("GOG GALAXY", "Abrir GOG GALAXY", () => Launch("goggalaxy://")),
-                new Entry("Explorar archivos de juegos", "Explorador integrado · unidades, carpetas y .exe", () => overlay?.OpenFileBrowser()),
-                new Entry("Carpeta de programas", "Explorar Archivos de programa dentro del Guide", () => overlay?.OpenFileBrowser())
+                new Entry("Explorar archivos de juegos", "Explorador integrado · unidades, carpetas y .exe", () => overlay?.OpenFileBrowser(), CloseOverlay: false),
+                new Entry("Carpeta de programas", "Explorar Archivos de programa dentro del Guide", () => overlay?.OpenFileBrowser(), CloseOverlay: false)
             }),
             new Blade("Social", "Amigos y comunicación · modo local", new[]
             {
