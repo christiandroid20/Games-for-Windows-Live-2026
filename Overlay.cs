@@ -768,6 +768,47 @@ internal sealed class Overlay : Window
         layout.Children.Add(nameBox);
 
         var buttons = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Left };
+        var classicAvatar = new Button { Content = "Galería Xbox 360…", Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 6, 6) };
+        classicAvatar.Click += (_, _) =>
+        {
+            string gallery = Path.Combine(AppContext.BaseDirectory, "Assets", "GamerPictures");
+            if (!Directory.Exists(gallery) || !Directory.EnumerateFiles(gallery, "*.png").Any())
+            {
+                MessageBox.Show(editor, "No se encontró la galería integrada. Comprueba que Assets/GamerPictures contenga los PNG.", "Galería de perfiles", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var picker = new Window { Title = "Imágenes de jugador · Xbox 360", Width = 590, Height = 520, Owner = editor, Topmost = true, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = GuideUi.Fixed("#EEEEEE"), MinWidth = 450, MinHeight = 360 };
+            var root = new DockPanel { Margin = new Thickness(12) };
+            var footer = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0) };
+            DockPanel.SetDock(footer, Dock.Bottom);
+            var apply = new Button { Content = "Usar selección", Padding = new Thickness(14, 6, 14, 6), IsEnabled = false };
+            var cancel = new Button { Content = "Cancelar", Padding = new Thickness(14, 6, 14, 6), Margin = new Thickness(6, 0, 0, 0), IsCancel = true };
+            footer.Children.Add(apply); footer.Children.Add(cancel); root.Children.Add(footer);
+            var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+            var grid = new UniformGrid { Columns = 8 };
+            string? selectedPath = null;
+            foreach (string path in Directory.EnumerateFiles(gallery, "*.png").OrderBy(x => Path.GetFileName(x), StringComparer.OrdinalIgnoreCase))
+            {
+                var image = new BitmapImage();
+                image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad; image.UriSource = new Uri(path, UriKind.Absolute); image.DecodePixelWidth = 64; image.EndInit(); image.Freeze();
+                var tile = new Border { Width = 58, Height = 58, Margin = new Thickness(3), Padding = new Thickness(2), BorderThickness = new Thickness(2), BorderBrush = Brushes.Transparent, Background = Brushes.White, Cursor = Cursors.Hand, Child = new Image { Source = image, Stretch = Stretch.Uniform } };
+                tile.MouseLeftButtonUp += (_, _) =>
+                {
+                    selectedPath = path;
+                    foreach (Border item in grid.Children.OfType<Border>()) item.BorderBrush = ReferenceEquals(item, tile) ? GuideUi.Fixed("#D6B52A") : Brushes.Transparent;
+                    apply.IsEnabled = true;
+                };
+                grid.Children.Add(tile);
+            }
+            scroll.Content = grid; root.Children.Add(scroll);
+            apply.Click += (_, _) =>
+            {
+                if (selectedPath == null) return;
+                try { WindowsProfileService.SetAvatar(selectedPath); RefreshProfileHeader(); Refresh(); picker.Close(); }
+                catch (Exception ex) { MessageBox.Show(picker, ex.Message, "No se pudo guardar el avatar", MessageBoxButton.OK, MessageBoxImage.Warning); }
+            };
+            picker.Content = root; picker.ShowDialog();
+        };
         var chooseAvatar = new Button { Content = "Cambiar imagen…", Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 6, 6) };
         chooseAvatar.Click += (_, _) =>
         {
@@ -782,7 +823,7 @@ internal sealed class Overlay : Window
         windowsAvatar.Click += (_, _) => { WindowsProfileService.ResetAvatar(); RefreshProfileHeader(); Refresh(); };
         var windowsName = new Button { Content = "Nombre de Windows", Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 6, 6) };
         windowsName.Click += (_, _) => { WindowsProfileService.ResetDisplayName(); nameBox.Text = WindowsProfileService.GetWindowsDisplayName(); RefreshProfileHeader(); Refresh(); };
-        buttons.Children.Add(chooseAvatar); buttons.Children.Add(windowsAvatar); buttons.Children.Add(windowsName);
+        buttons.Children.Add(classicAvatar); buttons.Children.Add(chooseAvatar); buttons.Children.Add(windowsAvatar); buttons.Children.Add(windowsName);
         layout.Children.Add(buttons);
 
         var save = new Button { Content = "Guardar nombre", Padding = new Thickness(12, 6, 12, 6), HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0), MinWidth = 120 };
