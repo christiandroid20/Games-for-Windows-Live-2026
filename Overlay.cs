@@ -638,7 +638,7 @@ internal sealed class Overlay : Window
     {
         IntPtr hwnd = new WindowInteropHelper(this).Handle;
         hotkey1 = RegisterHotKey(hwnd, Hotkey1, ModWin | ModNoRepeat, 0x47);
-        hotkey2 = RegisterHotKey(hwnd, Hotkey2, ModControl | ModAlt | ModNoRepeat, 0x47);
+        // XInput deliberately does not expose the PS/Guide button. DS4Windows must map\n        // the physical PS button to Ctrl+Alt+F10; this global fallback is less likely\n        // to collide with games than Ctrl+Alt+G.\n        hotkey2 = RegisterHotKey(hwnd, Hotkey2, ModControl | ModAlt | ModNoRepeat, 0x79);
     }
 
     IntPtr Hook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
