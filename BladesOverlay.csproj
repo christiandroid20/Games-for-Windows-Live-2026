@@ -6,4 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
   </PropertyGroup>
+  <ItemGroup>
+    <Content Include="Assets\GamerPictures\*.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>
