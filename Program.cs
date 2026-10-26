@@ -85,6 +85,9 @@ internal static class Program
         };
         overlay = new Overlay(blades);
         app.MainWindow = overlay;
+        // Show the Guide on launch while hotkey/controller activation is being validated.
+        // This avoids a silent background process when Windows reserves Win+G for Game Bar.
+        overlay.Show();
         app.Run();
     }
 }
