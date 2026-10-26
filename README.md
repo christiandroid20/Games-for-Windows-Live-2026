@@ -6,7 +6,7 @@ A lightweight, local-only overlay inspired by the original 2007 Games for Window
 
 - Compact Xbox 360 Guide: gold panel with curved edge and Player tab, gamer card, Community, media transport, controller-button footer, other tabs receding on the right edge, and open/close/selection transitions. See `docs/guide-fidelity.md`.
 - Windows 10 22H2 and Windows 11 compatibility target.
-- Win+G hotkey, with Ctrl+Alt+G fallback when another app owns Win+G.
+- Win+G hotkey, with Ctrl+Alt+F10 fallback for a DS4Windows PS-button keyboard mapping when another app owns Win+G.
 - Optional controller navigation and Guide-button detection through the commonly used undocumented XInput ordinal 100.
 - Launch Steam, Epic Games Launcher, GOG GALAXY, or a manually selected local executable.
 - No Xbox LIVE sign-in, networking service, Windows service, telemetry, or required third-party NuGet dependency.
@@ -37,11 +37,11 @@ Publish output: bin/Release/net8.0-windows/win-x64/publish/.
 ## Controls
 
 - Win+G: open/close (unless Windows Game Bar or another app owns the hotkey).
-- Ctrl+Alt+G: fallback hotkey.
+- Ctrl+Alt+F10: fallback hotkey. In DS4Windows, assign the physical PS button to the keyboard combo Ctrl+Alt+F10 (for example, with a profile special action / keyboard macro).
 - Arrow keys: navigate (Left/Right move inside button rows, otherwise switch tab; PageUp/PageDown always switch tab); Enter: launch; Esc / Backspace: back (closes from the top level).
 - Controller: Guide toggles; D-pad navigates, LB/RB switch tab; A selects; B goes back; Y closes; X locks the PC (in the file browser: back to drives).
 
-The Guide button is not part of the documented public XInput API. It may be unavailable on some Windows builds, controller models, or XInput runtimes. The overlay falls back to keyboard input if the undocumented entry point is missing.
+The Guide button is not part of the documented public XInput gamepad state: `XInputGetState` exposes the standard D-pad, shoulders, face buttons and other listed controls, but not the PS/Guide button. With a PlayStation controller emulated as an Xbox pad by DS4Windows, map the physical PS button to Ctrl+Alt+F10 in the DS4Windows profile. This activates the overlay through the registered global keyboard shortcut even when the virtual XInput state cannot report Guide. Win+G may still be reserved by Windows Game Bar.
 
 ## Notes
 
