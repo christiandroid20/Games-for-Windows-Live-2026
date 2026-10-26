@@ -32,6 +32,11 @@ internal sealed class XInputControllerProvider : IControllerProvider
         public XINPUT_GAMEPAD Gamepad;
     }
 
+    // XInputGetStateEx is an undocumented extension exported at ordinal 100 by
+    // xinput1_4.dll. Unlike the public XInputGetState, it can expose the Guide bit.
+    // Fall back to the documented APIs on systems where the ordinal is unavailable.
+    [DllImport("xinput1_4.dll", EntryPoint = "#100", ExactSpelling = true)]
+    private static extern uint XInputGetStateEx(uint userIndex, out XINPUT_STATE state);
     [DllImport("xinput1_4.dll", EntryPoint = "XInputGetState")]
     private static extern uint XInputGetState14(uint userIndex, out XINPUT_STATE state);
     [DllImport("xinput9_1_0.dll", EntryPoint = "XInputGetState")]
@@ -43,11 +48,22 @@ internal sealed class XInputControllerProvider : IControllerProvider
         if (userIndex < 0 || userIndex > 3) return false;
         XINPUT_STATE native;
         uint result;
-        try { result = XInputGetState14((uint)userIndex, out native); }
+        try
+        {
+            try { result = XInputGetStateEx((uint)userIndex, out native); }
+            catch (EntryPointNotFoundException) { result = XInputGetState14((uint)userIndex, out native); }
+        }
         catch (DllNotFoundException)
         {
             try { result = XInputGetStateLegacy((uint)userIndex, out native); }
             catch (DllNotFoundException) { return false; }
+            catch (EntryPointNotFoundException) { return false; }
+        }
+        catch (EntryPointNotFoundException)
+        {
+            try { result = XInputGetStateLegacy((uint)userIndex, out native); }
+            catch (DllNotFoundException) { return false; }
+            catch (EntryPointNotFoundException) { return false; }
         }
         if (result != 0) return false;
         state.Buttons = native.Gamepad.wButtons;
