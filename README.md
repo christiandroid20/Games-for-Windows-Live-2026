@@ -7,8 +7,8 @@ A lightweight, local-only overlay inspired by the original 2007 Games for Window
 - Compact Xbox 360 Guide: gold panel with curved edge and Player tab, gamer card, Community, media transport, controller-button footer, other tabs receding on the right edge, and open/close/selection transitions. See `docs/guide-fidelity.md`.
 - Windows 10 22H2 and Windows 11 compatibility target.
 - Win+G hotkey, with Ctrl+Alt+G fallback for a DS4Windows PS-button keyboard mapping when another app owns Win+G.
-- Optional controller navigation and Guide-button detection through the commonly used undocumented XInput ordinal 100.
-- Launch Steam, Epic Games Launcher, GOG GALAXY, or a manually selected local executable.
+- Controller navigation and Guide-button detection through XInputGetStateEx (ordinal 100), with documented XInput fallback.
+- Launch Steam, Epic Games Launcher, GOG GALAXY, or select local executables through the built-in Guide file browser.
 - No Xbox LIVE sign-in, networking service, Windows service, telemetry, or required third-party NuGet dependency.
 
 ## Requirements
@@ -39,7 +39,7 @@ Publish output: bin/Release/net8.0-windows/win-x64/publish/.
 - Win+G: open/close (unless Windows Game Bar or another app owns the hotkey).
 - Ctrl+Alt+G: fallback hotkey. In DS4Windows, assign the physical PS button to the keyboard combo Ctrl+Alt+G (for example, with a profile special action / keyboard macro).
 - Arrow keys: navigate (Left/Right move inside button rows, otherwise switch tab; PageUp/PageDown always switch tab); Enter: launch; Esc / Backspace: back (closes from the top level).
-- Controller: Guide toggles; D-pad navigates, LB/RB switch tab; A selects; B goes back; Y closes; X locks the PC (in the file browser: back to drives).
+- Controller: Guide toggles when exposed by XInputGetStateEx; D-pad navigates, LB/RB switch tab; A selects; B goes back; Y closes; X locks the PC (in the file browser: back to drives).
 
 The Guide button is not part of the documented public XInput gamepad state: `XInputGetState` exposes the standard D-pad, shoulders, face buttons and other listed controls, but not the PS/Guide button. With a PlayStation controller emulated as an Xbox pad by DS4Windows, map the physical PS button to Ctrl+Alt+G in the DS4Windows profile. This activates the overlay through the registered global keyboard shortcut even when the virtual XInput state cannot report Guide. Win+G may still be reserved by Windows Game Bar.
 
@@ -68,3 +68,8 @@ The current branch keeps modules in the same executable while establishing stabl
 The universal controller goal is **not complete yet**. This first provider currently reads XInput only. Physical HID/Windows battery enumeration and safe correlation between physical controllers and virtual XInput devices are future providers; the UI must not claim to detect every controller until those are implemented and tested. Battery values that cannot be verified should remain unavailable rather than guessed.
 
 The classic Xbox 360 avatar idea is feasible as an offline feature, but it is separate from Xbox LIVE. The old XNA Gamer Services avatar APIs were designed for Xbox 360 titles; Windows implementations do not render the original avatar system automatically. A faithful implementation would need a compatible offline renderer and legally distributable assets, or a clean-room avatar system inspired by the era. This repository does not bundle Microsoft avatar meshes, clothing, textures, or other proprietary assets.
+
+
+## Controller and game selection
+
+The controller provider first tries the commonly used XInputGetStateEx extension at ordinal 100, which can expose the Guide bit, then falls back to documented XInput APIs if that export is unavailable. Support depends on the XInput implementation and DS4Windows virtual controller and has not been verified on every setup. Ctrl+Alt+G remains available as a keyboard fallback. The built-in game browser lets you navigate drives and folders inside the Guide and launch .exe files without opening the Windows file picker. If HidHide hides the physical controller, raw HID detection would require allowlisting the app in HidHide; the current Guide-button path uses the virtual XInput device.
