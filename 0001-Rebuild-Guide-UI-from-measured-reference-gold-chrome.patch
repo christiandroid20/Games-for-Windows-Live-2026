@@ -1,0 +1,2084 @@
+From 2f5b3fa1b56a48a7d5e5426d169b03e97aedd031 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Mon, 26 Oct 2026 20:36:11 +0000
+Subject: [PATCH] Rebuild Guide UI from measured reference: gold chrome, Player
+ page, tab ring, list/file views
+
+- GuideChrome: silhouette, header/footer bands, rules and tab shoulder from point tables measured on the reference
+- GuideUi/Overlay: gamer card, Community, media transport, plate, footer hints, windowed lists
+- Navigation: sub-views with B/Esc back, LB/RB tabs, X contextual, clean state on every open, focus restore
+- File browser: keeps path/parent/drives, errors keep the previous folder, 2000-item cap
+- Fix: KeepOpen entries (browser, profile, theme) no longer close the Guide before running
+- GuideTheme: Tint() re-hues the gold for accent modes; corrupt settings are sanitised
+---
+ GuideChrome.cs         | 167 +++++++++
+ GuideTheme.cs          |  85 +++--
+ GuideUi.cs             | 108 ++++++
+ Overlay.cs             | 798 +++++++++++++++++++++++++++++++++++++++++
+ Program.cs             | 718 ++----------------------------------
+ README.md              |   6 +-
+ docs/guide-fidelity.md |  27 ++
+ 7 files changed, 1181 insertions(+), 728 deletions(-)
+ create mode 100644 GuideChrome.cs
+ create mode 100644 GuideUi.cs
+ create mode 100644 Overlay.cs
+ create mode 100644 docs/guide-fidelity.md
+
+diff --git a/GuideChrome.cs b/GuideChrome.cs
+new file mode 100644
+index 0000000..aef35bc
+--- /dev/null
++++ b/GuideChrome.cs
+@@ -0,0 +1,167 @@
++using System;
++using System.Collections.Generic;
++using System.Windows;
++using System.Windows.Media;
++
++/// <summary>
++/// Draws the compact Xbox 360 Guide silhouette in a fixed 830x1080 design space.
++/// Every curve below was measured from the reference screenshot (1920x1080): the inner
++/// dark rule, the cream highlight rule, the outer outline, the Player tab shoulder and the
++/// header/footer bands. Colours go through <see cref="GuideTheme.Tint"/> so the classic gold
++/// stays exact while the optional accent modes re-colour it.
++/// </summary>
++internal sealed class GuideChrome : FrameworkElement
++{
++    public const double DesignWidth = 830, DesignHeight = 1080;
++    public const double HeaderBottom = 141, BodyBottom = 858;
++
++    // x,y pairs: centre of the dark inner rule (body edge).
++    static readonly Point[] InnerRule = Pts(
++        785, 0, 779, 40, 773, 80, 766, 120, 761, 160, 756, 200, 753, 240, 749, 280, 747, 320, 744, 360,
++        742, 400, 741, 440, 740, 480, 739, 520, 739, 560, 739, 600, 740, 640, 741, 680, 742, 720, 744, 760,
++        746, 800, 750, 840, 753, 880, 759, 920, 765, 960, 771, 1000, 778, 1040, 785, 1080);
++
++    // Outer outline above the Player tab shoulder.
++    static readonly Point[] OuterTop = Pts(815, 0, 809, 40, 803, 80, 797, 120);
++
++    // Outer outline from the tab shoulder down to the bottom edge.
++    static readonly Point[] OuterTab = Pts(
++        823, 144, 822, 200, 818, 300, 815, 400, 810, 500, 807, 600, 803, 700, 801, 720, 796, 740,
++        789, 760, 779, 780, 774, 800, 771, 820, 772, 860, 777, 900, 787, 960, 796, 1000, 805, 1040, 814, 1080);
++
++    // Cream outline of the header card (right side).
++    static readonly Point[] HeaderEdge = Pts(778, 1, 777, 20, 773, 40, 769, 60, 765, 80, 760, 100);
++
++    public GuideChrome()
++    {
++        Width = DesignWidth; Height = DesignHeight; IsHitTestVisible = false;
++        SnapsToDevicePixels = true;
++    }
++
++    static Point[] Pts(params double[] v)
++    {
++        var p = new Point[v.Length / 2];
++        for (int i = 0; i < p.Length; i++) p[i] = new Point(v[2 * i], v[2 * i + 1]);
++        return p;
++    }
++
++    static Point[] Shift(Point[] src, double dx)
++    {
++        var p = new Point[src.Length];
++        for (int i = 0; i < p.Length; i++) p[i] = new Point(src[i].X + dx, src[i].Y);
++        return p;
++    }
++
++    // Catmull-Rom through the points, emitted as cubic Béziers. The figure must already be at p[0].
++    static void Spline(StreamGeometryContext c, IReadOnlyList<Point> p, bool stroked)
++    {
++        for (int i = 0; i < p.Count - 1; i++)
++        {
++            Point p0 = p[Math.Max(i - 1, 0)], p1 = p[i], p2 = p[i + 1], p3 = p[Math.Min(i + 2, p.Count - 1)];
++            c.BezierTo(new Point(p1.X + (p2.X - p0.X) / 6, p1.Y + (p2.Y - p0.Y) / 6),
++                       new Point(p2.X - (p3.X - p1.X) / 6, p2.Y - (p3.Y - p1.Y) / 6), p2, stroked, true);
++        }
++    }
++
++    static StreamGeometry Silhouette()
++    {
++        var g = new StreamGeometry();
++        using (var c = g.Open())
++        {
++            c.BeginFigure(new Point(0, 0), true, false);
++            c.LineTo(OuterTop[0], false, false);
++            Spline(c, OuterTop, true);
++            // Square shoulder of the Player tab, rounded on its outer corner.
++            c.LineTo(new Point(797, 129), true, false);
++            c.LineTo(new Point(808, 131), true, false);
++            c.QuadraticBezierTo(new Point(823, 131), new Point(823, 144), true, true);
++            Spline(c, OuterTab, true);
++            c.LineTo(new Point(0, DesignHeight), false, false);
++        }
++        g.Freeze();
++        return g;
++    }
++
++    static StreamGeometry Body()
++    {
++        var g = new StreamGeometry();
++        using (var c = g.Open())
++        {
++            c.BeginFigure(new Point(0, 0), true, false);
++            c.LineTo(InnerRule[0], false, false);
++            Spline(c, InnerRule, false);
++            c.LineTo(new Point(0, DesignHeight), false, false);
++        }
++        g.Freeze();
++        return g;
++    }
++
++    static StreamGeometry Rule(double dx)
++    {
++        var pts = Shift(InnerRule, dx);
++        var g = new StreamGeometry();
++        using (var c = g.Open())
++        {
++            c.BeginFigure(pts[0], false, false);
++            Spline(c, pts, true);
++        }
++        g.Freeze();
++        return g;
++    }
++
++    static StreamGeometry Header()
++    {
++        var g = new StreamGeometry();
++        using (var c = g.Open())
++        {
++            c.BeginFigure(new Point(0, 1), true, false);
++            c.LineTo(HeaderEdge[0], true, false);
++            Spline(c, HeaderEdge, true);
++            c.BezierTo(new Point(756, 119), new Point(744, HeaderBottom), new Point(722, HeaderBottom), true, true);
++            c.LineTo(new Point(0, HeaderBottom), true, false);
++        }
++        g.Freeze();
++        return g;
++    }
++
++    static SolidColorBrush S(string hex) => GuideUi.Themed(hex);
++
++    protected override void OnRender(DrawingContext dc)
++    {
++        base.OnRender(dc);
++        var body = Body();
++
++        // 1. Outer band with the dark outline.
++        dc.DrawGeometry(S("#E1B423"), new Pen(S("#46432F"), 4) { LineJoin = PenLineJoin.Round }, Silhouette());
++
++        // 2. Body: soft horizontal highlight like the reference (#F5C41F -> #FDD53A -> #E3B725).
++        dc.DrawGeometry(GuideUi.Horizontal((0, "#F5C41F"), (0.52, "#FDD53A"), (1, "#E3B725")), null, body);
++
++        // 3. Faint X-in-circle watermark, clipped to the body.
++        dc.PushClip(body);
++        var mark = new Pen(S("#EBBB1E"), 2);
++        for (int r = 0; r < 14; r++)
++            for (int k = 0; k < 9; k++)
++            {
++                double cx = 58 + k * 100 + (r % 2) * 50, cy = 190 + r * 86;
++                dc.DrawEllipse(null, mark, new Point(cx, cy), 17, 17);
++                dc.DrawLine(mark, new Point(cx - 9, cy - 9), new Point(cx + 9, cy + 9));
++                dc.DrawLine(mark, new Point(cx + 9, cy - 9), new Point(cx - 9, cy + 9));
++            }
++
++        // 4. Footer band (dark olive fading into gold) and its cream hairline.
++        dc.DrawRectangle(GuideUi.Vertical((0, "#3F3B1E"), (0.19, "#655819"), (0.35, "#867213"), (0.51, "#A78C0D"),
++                                          (0.68, "#BC9C0E"), (0.84, "#D1AB0E"), (1, "#DDB510")),
++                         null, new Rect(0, BodyBottom, DesignWidth, DesignHeight - BodyBottom));
++        dc.DrawLine(new Pen(S("#E8E9CA"), 2), new Point(0, BodyBottom), new Point(DesignWidth, BodyBottom));
++        dc.Pop();
++
++        // 5. Header card: dark olive to gold, cream outline with a rounded lower-right corner.
++        dc.DrawGeometry(GuideUi.Vertical((0, "#4B431A"), (0.26, "#756516"), (0.51, "#A78C0D"), (0.77, "#C8A40E"), (1, "#E9B818")),
++                        new Pen(S("#E8E9CA"), 2) { LineJoin = PenLineJoin.Round }, Header());
++
++        // 6. Inner dark rule and the cream highlight rule that follows it.
++        dc.DrawGeometry(null, new Pen(S("#5B552E"), 4), Rule(0));
++        dc.DrawGeometry(null, new Pen(S("#FAF2B9"), 4), Rule(8));
++    }
++}
+diff --git a/GuideTheme.cs b/GuideTheme.cs
+index be55f26..d67e35d 100644
+--- a/GuideTheme.cs
++++ b/GuideTheme.cs
+@@ -2,8 +2,14 @@ using Microsoft.Win32;
+ using System;
+ using System.IO;
+ using System.Text.Json;
++using System.Text.RegularExpressions;
+ using System.Windows.Media;
+ 
++/// <summary>
++/// Persisted Guide appearance. Mode 0 is the classic Xbox 360 gold and is never altered.
++/// Modes 1-3 re-colour the gold chrome through <see cref="Tint"/>, keeping lightness and
++/// relative saturation so contrast and selection states stay readable.
++/// </summary>
+ internal static class GuideTheme
+ {
+     private sealed class Settings
+@@ -12,6 +18,8 @@ internal static class GuideTheme
+         public string CustomAccent { get; set; } = "#6ABF40";
+     }
+ 
++    private static readonly Regex HexColor = new("^#([0-9a-fA-F]{6})$");
++
+     private static readonly string SettingsPath = Path.Combine(
+         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+         "GamesForWindowsLIVE2026", "guide-theme.json");
+@@ -25,32 +33,24 @@ internal static class GuideTheme
+     public static string CustomAccent => settings.CustomAccent;
+     public static string CurrentAccent => currentAccent;
+ 
+-    public static string ResolveColor(string input)
++    /// <summary>Returns the colour unchanged in classic mode, otherwise re-hued to the accent.</summary>
++    public static Color Tint(string hex)
+     {
+-        if (settings.Mode == 0) return input;
+-        // Only replace the app's green selection/highlight colors. Neutral surfaces
+-        // and the classic gold Guide chrome remain unchanged.
+-        if (input.Equals("#5DAA37", StringComparison.OrdinalIgnoreCase) ||
+-            input.Equals("#8EDB63", StringComparison.OrdinalIgnoreCase) ||
+-            input.Equals("#8FD76C", StringComparison.OrdinalIgnoreCase) ||
+-            input.Equals("#72BD4D", StringComparison.OrdinalIgnoreCase) ||
+-            input.Equals("#398C28", StringComparison.OrdinalIgnoreCase) ||
+-            input.Equals("#2D7B20", StringComparison.OrdinalIgnoreCase) ||
+-            input.Equals("#4C842D", StringComparison.OrdinalIgnoreCase))
+-            return currentAccent;
+-        return input;
++        var color = (Color)ColorConverter.ConvertFromString(hex);
++        if (settings.Mode == 0) return color;
++        var accent = (Color)ColorConverter.ConvertFromString(currentAccent);
++        ToHsl(accent, out double hue, out double accentSat, out _);
++        ToHsl(color, out _, out double sat, out double light);
++        double scale = Math.Clamp(accentSat / 0.9, 0.3, 1.1);
++        return FromHsl(hue, Math.Clamp(sat * scale, 0, 1), light, color.A);
+     }
+ 
+     public static void SetMode(int mode, string customAccent)
+     {
+         settings.Mode = Math.Clamp(mode, 0, 3);
+-        if (!string.IsNullOrWhiteSpace(customAccent) &&
+-            System.Text.RegularExpressions.Regex.IsMatch(customAccent, "^#([0-9a-fA-F]{6})$"))
++        if (!string.IsNullOrWhiteSpace(customAccent) && HexColor.IsMatch(customAccent))
+             settings.CustomAccent = customAccent.ToUpperInvariant();
+-        if (settings.Mode == 2)
+-            currentAccent = RandomAccent();
+-        else
+-            currentAccent = CalculateAccent();
++        currentAccent = settings.Mode == 2 ? RandomAccent() : CalculateAccent();
+         Save();
+     }
+ 
+@@ -83,12 +83,6 @@ internal static class GuideTheme
+             if (raw is long wide) return FromBgra(unchecked((uint)wide));
+         }
+         catch { }
+-        try
+-        {
+-            using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+-            if (key?.GetValue("ColorPrevalence") is int) { }
+-        }
+-        catch { }
+         return "#6ABF40";
+     }
+ 
+@@ -106,10 +100,36 @@ internal static class GuideTheme
+         "#6AAB35", "#B64DA8", "#3976B9", "#C19A22", "#C94B42"
+     };
+ 
+-    private static string RandomAccent()
++    private static string RandomAccent() => RandomColors[Random.Shared.Next(RandomColors.Length)];
++
++    private static void ToHsl(Color c, out double h, out double s, out double l)
++    {
++        double r = c.R / 255.0, g = c.G / 255.0, b = c.B / 255.0;
++        double max = Math.Max(r, Math.Max(g, b)), min = Math.Min(r, Math.Min(g, b));
++        l = (max + min) / 2;
++        double d = max - min;
++        if (d < 1e-9) { h = 0; s = 0; return; }
++        s = d / (1 - Math.Abs(2 * l - 1));
++        if (max == r) h = (g - b) / d + (g < b ? 6 : 0);
++        else if (max == g) h = (b - r) / d + 2;
++        else h = (r - g) / d + 4;
++        h *= 60;
++    }
++
++    private static Color FromHsl(double h, double s, double l, byte alpha)
+     {
+-        var index = Random.Shared.Next(RandomColors.Length);
+-        return RandomColors[index];
++        double c = (1 - Math.Abs(2 * l - 1)) * s;
++        double hp = (h % 360) / 60.0;
++        double x = c * (1 - Math.Abs(hp % 2 - 1));
++        double m = l - c / 2;
++        double r, g, b;
++        if (hp < 1) { r = c; g = x; b = 0; }
++        else if (hp < 2) { r = x; g = c; b = 0; }
++        else if (hp < 3) { r = 0; g = c; b = x; }
++        else if (hp < 4) { r = 0; g = x; b = c; }
++        else if (hp < 5) { r = x; g = 0; b = c; }
++        else { r = c; g = 0; b = x; }
++        return Color.FromArgb(alpha, (byte)Math.Round((r + m) * 255), (byte)Math.Round((g + m) * 255), (byte)Math.Round((b + m) * 255));
+     }
+ 
+     private static Settings Load()
+@@ -119,7 +139,14 @@ internal static class GuideTheme
+             if (File.Exists(SettingsPath))
+             {
+                 var parsed = JsonSerializer.Deserialize<Settings>(File.ReadAllText(SettingsPath));
+-                if (parsed != null) return parsed;
++                if (parsed != null)
++                {
++                    // A hand-edited or damaged file must never stop the Guide from starting.
++                    parsed.Mode = Math.Clamp(parsed.Mode, 0, 3);
++                    if (string.IsNullOrWhiteSpace(parsed.CustomAccent) || !HexColor.IsMatch(parsed.CustomAccent))
++                        parsed.CustomAccent = "#6ABF40";
++                    return parsed;
++                }
+             }
+         }
+         catch { }
+diff --git a/GuideUi.cs b/GuideUi.cs
+new file mode 100644
+index 0000000..eac50f3
+--- /dev/null
++++ b/GuideUi.cs
+@@ -0,0 +1,108 @@
++using System;
++using System.Windows;
++using System.Windows.Controls;
++using System.Windows.Input;
++using System.Windows.Media;
++using System.Windows.Media.Effects;
++
++/// <summary>Reusable Guide building blocks: text, gloss buttons, selectable rows and controller balls.</summary>
++internal static class GuideUi
++{
++    public static readonly FontFamily Sans = new("Segoe UI");
++    public static readonly FontFamily Icons = new("Segoe Fluent Icons, Segoe MDL2 Assets");
++
++    public static Color K(string hex) => GuideTheme.Tint(hex);
++    /// <summary>Gold chrome colour that follows the active theme.</summary>
++    public static SolidColorBrush Themed(string hex) => new(K(hex));
++    /// <summary>Colour that never changes with the theme (text, controller buttons, ring).</summary>
++    public static SolidColorBrush Fixed(string hex) => new((Color)ColorConverter.ConvertFromString(hex));
++
++    static LinearGradientBrush Gradient(Point start, Point end, (double Offset, string Hex)[] stops)
++    {
++        var brush = new LinearGradientBrush { StartPoint = start, EndPoint = end };
++        foreach (var (offset, hex) in stops) brush.GradientStops.Add(new GradientStop(K(hex), offset));
++        return brush;
++    }
++
++    public static LinearGradientBrush Vertical(params (double Offset, string Hex)[] stops) => Gradient(new Point(0, 0), new Point(0, 1), stops);
++    public static LinearGradientBrush Horizontal(params (double Offset, string Hex)[] stops) => Gradient(new Point(0, 0), new Point(1, 0), stops);
++
++    public static TextBlock Text(string s, double size, string color = "#1B1709", FontWeight? weight = null) => new()
++    {
++        Text = s, FontSize = size, Foreground = Fixed(color), FontWeight = weight ?? FontWeights.Normal,
++        FontFamily = Sans, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis
++    };
++
++    public static TextBlock Glyph(string glyph, double size, string color = "#1B1709") => new()
++    {
++        Text = glyph, FontSize = size, Foreground = Fixed(color), FontFamily = Icons,
++        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
++    };
++
++    static DropShadowEffect Glow() => new() { Color = Colors.White, BlurRadius = 14, ShadowDepth = 0, Opacity = .9 };
++
++    static Brush SelectedFill() => Vertical((0, "#FFFBE0"), (0.5, "#FFEFA0"), (1, "#FFD95A"));
++
++    /// <summary>Glossy gold button used by the Community counters and the media transport.</summary>
++    public static Border Gloss(UIElement content, bool selected, bool enabled = true) => new()
++    {
++        Height = 52, CornerRadius = new CornerRadius(3), Child = content, Opacity = enabled ? 1 : .45, Cursor = Cursors.Hand,
++        Background = selected ? SelectedFill() : Vertical((0, "#FCE27A"), (0.45, "#FBD64A"), (0.75, "#F2CC39"), (1, "#E3BE2C")),
++        BorderBrush = selected ? Fixed("#FFFFFF") : Themed("#BDA32C"),
++        BorderThickness = new Thickness(selected ? 2 : 1),
++        Effect = selected ? Glow() : null
++    };
++
++    /// <summary>Flat list row with the pale separator of the original; selected rows glow.</summary>
++    public static Border Row(UIElement content, double height, bool selected) => new()
++    {
++        Height = height, Padding = new Thickness(12, 0, 12, 0), Child = content, Cursor = Cursors.Hand,
++        Background = selected ? SelectedFill() : Brushes.Transparent,
++        BorderBrush = selected ? Fixed("#FFFFFF") : Themed("#EEC935"),
++        BorderThickness = selected ? new Thickness(2) : new Thickness(0, 0, 0, 2),
++        CornerRadius = new CornerRadius(selected ? 3 : 0),
++        Effect = selected ? Glow() : null
++    };
++
++    /// <summary>Light card used for the gamer card, the Community box and the media box.</summary>
++    public static Border Box(UIElement content, double height, bool selected = false) => new()
++    {
++        Height = height, Child = content,
++        Background = Horizontal((0, "#F9CF3A"), (0.5, "#FDD847"), (1, "#E9C13C")),
++        BorderBrush = selected ? Fixed("#FFFFFF") : Themed("#C4A639"),
++        BorderThickness = new Thickness(selected ? 2 : 1), CornerRadius = new CornerRadius(3),
++        Effect = selected ? Glow() : null
++    };
++
++    static Color Mix(Color a, Color b, double t) => Color.FromRgb(
++        (byte)(a.R + (b.R - a.R) * t), (byte)(a.G + (b.G - a.G) * t), (byte)(a.B + (b.B - a.B) * t));
++
++    /// <summary>Glossy round controller button (A, B, X, Y).</summary>
++    public static Border Ball(string letter, string hex)
++    {
++        var baseColor = (Color)ColorConverter.ConvertFromString(hex);
++        var fill = new RadialGradientBrush { GradientOrigin = new Point(.35, .28), Center = new Point(.5, .5), RadiusX = .75, RadiusY = .75 };
++        fill.GradientStops.Add(new GradientStop(Mix(baseColor, Colors.White, .55), 0));
++        fill.GradientStops.Add(new GradientStop(baseColor, .55));
++        fill.GradientStops.Add(new GradientStop(Mix(baseColor, Colors.Black, .35), 1));
++        var label = Text(letter, 19, "#FFFFFF", FontWeights.Bold);
++        label.HorizontalAlignment = HorizontalAlignment.Center;
++        return new Border
++        {
++            Width = 34, Height = 34, CornerRadius = new CornerRadius(17), Background = fill,
++            BorderBrush = Fixed("#152B1A"), BorderThickness = new Thickness(1.5), Child = label
++        };
++    }
++
++    /// <summary>Footer hint. The ball sits left of the text on the left column and right of it on the right column.</summary>
++    public static StackPanel Hint(string letter, string hex, TextBlock label, bool ballFirst)
++    {
++        var row = new StackPanel { Orientation = Orientation.Horizontal, Height = 38 };
++        label.Foreground = Brushes.White; label.FontSize = 25; label.VerticalAlignment = VerticalAlignment.Center;
++        label.Margin = ballFirst ? new Thickness(10, 0, 0, 0) : new Thickness(0, 0, 10, 0);
++        var ball = Ball(letter, hex);
++        if (ballFirst) { row.Children.Add(ball); row.Children.Add(label); }
++        else { row.Children.Add(label); row.Children.Add(ball); }
++        return row;
++    }
++}
+diff --git a/Overlay.cs b/Overlay.cs
+new file mode 100644
+index 0000000..6ab5523
+--- /dev/null
++++ b/Overlay.cs
+@@ -0,0 +1,798 @@
++using Microsoft.Win32;
++using System;
++using System.Collections.Generic;
++using System.IO;
++using System.Linq;
++using System.Runtime.InteropServices;
++using System.Windows;
++using System.Windows.Controls;
++using System.Windows.Controls.Primitives;
++using System.Windows.Input;
++using System.Windows.Interop;
++using System.Windows.Media;
++using System.Windows.Media.Animation;
++using System.Windows.Media.Imaging;
++using System.Windows.Shapes;
++using System.Windows.Threading;
++
++internal sealed record Entry(string Name, string Detail, Action Run, bool KeepOpen = false);
++internal sealed record Blade(string Name, string Subtitle, Entry[] Entries, bool Player = false);
++
++/// <summary>
++/// The compact Xbox 360 Guide: gold panel on the left (<see cref="GuideChrome"/>), the other
++/// tabs as dark strips on the right edge. A Player tab holds the gamer card, Community counters,
++/// media transport and logo plate; other tabs are list pages; "Configuración personal" and the
++/// integrated file browser are sub-views that B / Esc back out of.
++/// </summary>
++internal sealed class Overlay : Window
++{
++    const int Hotkey1 = 1, Hotkey2 = 2, WmHotkey = 0x312;
++    const uint ModWin = 8, ModControl = 2, ModAlt = 1, ModNoRepeat = 0x4000;
++    const ushort GuideButton = 0x0400;
++    const int VisibleRows = 7, MaxBrowserItems = 2000;
++
++    // Player page rows and how many selectable cells each has.
++    static readonly int[] PlayerCols = { 1, 3, 1, 1, 6, 1 };
++    static readonly byte[] MediaKeys = { 0xB3, 0xB1, 0xB2, 0xB0, 0, 0xAD }; // play, prev, stop, next, (shuffle), mute
++
++    [DllImport("user32.dll", SetLastError = true)] static extern bool RegisterHotKey(IntPtr h, int id, uint mod, uint key);
++    [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr h, int id);
++    [DllImport("user32.dll")] static extern bool LockWorkStation();
++    [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
++    [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
++    [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
++
++    enum View { Tab, Sub, Files }
++
++    readonly IControllerProvider controller = new XInputControllerProvider();
++    readonly Blade[] blades;
++    readonly GuideChrome chrome = new();
++    readonly Canvas leftCanvas = new() { Width = GuideChrome.DesignWidth, Height = GuideChrome.DesignHeight };
++    readonly Canvas rightCanvas = new() { Height = GuideChrome.DesignHeight };
++    readonly StackPanel body = new();
++    readonly TextBlock clock = GuideUi.Text("", 28, "#FFFFFF");
++    readonly TextBlock tabLabel = GuideUi.Text("", 32);
++    readonly TextBlock hintX = GuideUi.Text("Bloquear equipo", 25, "#FFFFFF");
++    readonly TranslateTransform slideLeft = new(), slideRight = new();
++    readonly DispatcherTimer clockTimer = new() { Interval = TimeSpan.FromSeconds(1) };
++    readonly DispatcherTimer padTimer = new(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(55) };
++    readonly ushort[] previous = new ushort[4];
++    readonly List<FileSystemInfo> browserItems = new();
++
++    HwndSource? source;
++    IntPtr previousWindow;
++    View view;
++    Entry[]? subEntries;
++    string subTitle = "";
++    string? browserPath, notice;
++    bool browserHasParent, hotkey1, hotkey2, padUnavailable, animating;
++    int tab, row, col;
++    string profileName = "", initials = "";
++    ImageSource? avatar;
++
++    public Overlay(Blade[] sourceBlades)
++    {
++        blades = sourceBlades;
++        Title = "Games for Windows LIVE 2026";
++        WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize;
++        AllowsTransparency = true; Background = new SolidColorBrush(Color.FromArgb(150, 0, 0, 0));
++        Topmost = true; ShowInTaskbar = false; WindowState = WindowState.Maximized;
++        UseLayoutRounding = true; SnapsToDevicePixels = true;
++
++        BuildLayout();
++        PreviewKeyDown += KeyPressed;
++        PreviewMouseWheel += (_, e) => { Move(0, e.Delta > 0 ? -1 : 1); e.Handled = true; };
++
++        IntPtr handle = new WindowInteropHelper(this).EnsureHandle();
++        source = HwndSource.FromHwnd(handle);
++        source?.AddHook(Hook);
++        RegisterHotkeys();
++        Closed += (_, _) => Cleanup();
++
++        clockTimer.Tick += (_, _) => { clock.Text = DateTime.Now.ToString("h:mm tt"); if (GuideTheme.RefreshAccent()) RefreshTheme(); };
++        padTimer.Tick += (_, _) => PollPad();
++        clockTimer.Start(); padTimer.Start();
++        clock.Text = DateTime.Now.ToString("h:mm tt");
++        RefreshProfileHeader();
++        Refresh();
++    }
++
++    // ───────────────────────── layout ─────────────────────────
++
++    static void Put(Canvas canvas, UIElement element, double x, double y, double w = double.NaN, double h = double.NaN)
++    {
++        Canvas.SetLeft(element, x); Canvas.SetTop(element, y);
++        if (element is FrameworkElement f)
++        {
++            if (!double.IsNaN(w)) f.Width = w;
++            if (!double.IsNaN(h)) f.Height = h;
++        }
++        canvas.Children.Add(element);
++    }
++
++    void BuildLayout()
++    {
++        leftCanvas.Children.Add(chrome);
++
++        clock.TextAlignment = TextAlignment.Right;
++        Put(leftCanvas, clock, 400, 98, 312, 40);
++
++        var bodyHost = new Grid { ClipToBounds = true };
++        bodyHost.Children.Add(body);
++        Put(leftCanvas, bodyHost, 154, 165, 555, 695);
++
++        // The active tab's name runs top-to-bottom on the gold shoulder, as in the original.
++        tabLabel.LayoutTransform = new RotateTransform(90);
++        tabLabel.HorizontalAlignment = HorizontalAlignment.Center;
++        tabLabel.TextTrimming = TextTrimming.None;
++        var labelHost = new Grid();
++        labelHost.Children.Add(tabLabel);
++        Put(leftCanvas, labelHost, 728, 130, 84, 590);
++
++        var left = new StackPanel();
++        left.Children.Add(GuideUi.Hint("Y", "#E8C21A", GuideUi.Text("Cerrar Guide", 25), true));
++        left.Children.Add(GuideUi.Hint("X", "#2C6FB0", hintX, true));
++        Put(leftCanvas, left, 154, 876);
++
++        var right = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right };
++        var back = GuideUi.Hint("B", "#C0392B", GuideUi.Text("Atrás", 25), false);
++        var pick = GuideUi.Hint("A", "#3E9A2C", GuideUi.Text("Seleccionar", 25), false);
++        back.HorizontalAlignment = HorizontalAlignment.Right; pick.HorizontalAlignment = HorizontalAlignment.Right;
++        right.Children.Add(back); right.Children.Add(pick);
++        var rightHost = new Grid();
++        rightHost.Children.Add(right);
++        Put(leftCanvas, rightHost, 398, 878, 313);
++
++        var leftBox = new Viewbox
++        {
++            Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Left,
++            VerticalAlignment = VerticalAlignment.Stretch, Child = leftCanvas, RenderTransform = slideLeft
++        };
++        var rightBox = new Viewbox
++        {
++            Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Right,
++            VerticalAlignment = VerticalAlignment.Stretch, Child = rightCanvas, RenderTransform = slideRight
++        };
++        var root = new Grid { Background = Brushes.Transparent };
++        root.Children.Add(leftBox); root.Children.Add(rightBox);
++        root.MouseLeftButtonDown += (_, e) => { if (ReferenceEquals(e.OriginalSource, root)) CloseAnimated(); };
++        Content = root;
++    }
++
++    // The inactive tabs recede as dark strips against the right screen edge.
++    void BuildRing()
++    {
++        rightCanvas.Children.Clear();
++        var others = Enumerable.Range(0, blades.Length).Where(i => i != tab).ToList();
++        int n = others.Count;
++        rightCanvas.Width = 140 + 80 * n;
++        Put(rightCanvas, new Border { Background = GuideUi.Fixed("#343536"), BorderBrush = GuideUi.Fixed("#101010"), BorderThickness = new Thickness(2, 0, 0, 0) },
++            80 * n, 0, 140, GuideChrome.DesignHeight);
++        for (int k = n - 1; k >= 0; k--)
++        {
++            int index = others[k];
++            var label = GuideUi.Text(blades[index].Name.ToLowerInvariant(), 32, "#111111");
++            label.LayoutTransform = new RotateTransform(90);
++            label.HorizontalAlignment = HorizontalAlignment.Center; label.VerticalAlignment = VerticalAlignment.Top;
++            label.Margin = new Thickness(0, 46, 0, 0); label.TextTrimming = TextTrimming.None;
++            var band = new Border
++            {
++                Background = GuideUi.Horizontal((0, "#4A4A4A"), (1, "#383838")),
++                BorderBrush = GuideUi.Fixed("#101010"), BorderThickness = new Thickness(2, 2, 0, 0),
++                CornerRadius = new CornerRadius(18, 0, 0, 0), Child = label, Cursor = Cursors.Hand
++            };
++            band.MouseLeftButtonUp += (_, _) => SelectTab(index);
++            double top = 150 + 36 * k;
++            Put(rightCanvas, band, 80 * k, top, 92, GuideChrome.DesignHeight - top);
++        }
++    }
++
++    // ───────────────────────── pages ─────────────────────────
++
++    bool IsPlayerPage => view == View.Tab && blades[tab].Player;
++    bool Sel(int r, int c = 0) => row == r && col == c;
++
++    void Refresh()
++    {
++        body.Children.Clear();
++        tabLabel.Text = blades[tab].Name;
++        hintX.Text = view == View.Files ? "Unidades" : "Bloquear equipo";
++        if (view == View.Files) BuildFiles();
++        else if (IsPlayerPage) BuildPlayer();
++        else BuildEntries();
++        BuildRing();
++    }
++
++    void RefreshTheme()
++    {
++        chrome.InvalidateVisual();
++        Refresh();
++    }
++
++    void BuildPlayer()
++    {
++        body.Children.Add(Card());
++        body.Children.Add(Community());
++        body.Children.Add(PlainRow("Chat privado", 2));
++        body.Children.Add(PlainRow("Configuración personal", 3));
++        body.Children.Add(MediaBox());
++        body.Children.Add(Plate());
++    }
++
++    Border Card()
++    {
++        var picture = new Border { Width = 90, Height = 90, BorderBrush = GuideUi.Fixed("#8D7A2A"), BorderThickness = new Thickness(2), Background = GuideUi.Fixed("#5DAA37"), ClipToBounds = true };
++        if (avatar != null) picture.Child = new Image { Source = avatar, Stretch = Stretch.UniformToFill };
++        else
++        {
++            var letters = GuideUi.Text(initials, 40, "#FFFFFF", FontWeights.Bold);
++            letters.HorizontalAlignment = HorizontalAlignment.Center;
++            picture.Child = letters;
++        }
++        // Offline profile: nothing here pretends to come from Xbox LIVE.
++        var lines = new Grid { Margin = new Thickness(15, 0, 0, 0) };
++        lines.RowDefinitions.Add(new RowDefinition()); lines.RowDefinitions.Add(new RowDefinition());
++        lines.ColumnDefinitions.Add(new ColumnDefinition()); lines.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
++        AddCell(lines, GuideUi.Text(profileName, 31), 0, 0);
++        AddCell(lines, GuideUi.Text("0 G", 31), 1, 0);
++        AddCell(lines, GuideUi.Text("Estado", 31), 0, 1);
++        AddCell(lines, GuideUi.Text("Local", 31), 1, 1);
++        var dock = new DockPanel();
++        DockPanel.SetDock(picture, Dock.Left);
++        dock.Children.Add(picture); dock.Children.Add(lines);
++        var card = GuideUi.Box(dock, 121, Sel(0));
++        card.Padding = new Thickness(15); card.Margin = new Thickness(0, 0, 0, 17); card.Cursor = Cursors.Hand;
++        card.MouseLeftButtonUp += (_, _) => Pick(0, 0);
++        return card;
++    }
++
++    static void AddCell(Grid grid, UIElement element, int column, int rowIndex)
++    {
++        Grid.SetColumn(element, column); Grid.SetRow(element, rowIndex);
++        grid.Children.Add(element);
++    }
++
++    Border Community()
++    {
++        string[] glyphs = { "\uE715", "\uE716", "\uE7FC" }; // mail, people, game
++        var grid = new Grid();
++        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(46) });
++        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
++        var title = GuideUi.Text("Comunidad", 30);
++        title.Margin = new Thickness(0, 0, 0, 0);
++        AddCell(grid, title, 0, 0);
++        var buttons = new UniformGrid { Columns = 3, Rows = 1 };
++        for (int c = 0; c < 3; c++)
++        {
++            int picked = c;
++            var inner = new Grid();
++            inner.ColumnDefinitions.Add(new ColumnDefinition()); inner.ColumnDefinitions.Add(new ColumnDefinition());
++            AddCell(inner, GuideUi.Glyph(glyphs[c], 24), 0, 0);
++            var count = GuideUi.Text("—", 28); // no Xbox LIVE backend: counts are not available
++            count.HorizontalAlignment = HorizontalAlignment.Center;
++            AddCell(inner, count, 1, 0);
++            var button = GuideUi.Gloss(inner, Sel(1, c));
++            button.Margin = new Thickness(c == 0 ? 0 : 3, 0, c == 2 ? 0 : 3, 0);
++            button.MouseLeftButtonUp += (_, _) => Pick(1, picked);
++            buttons.Children.Add(button);
++        }
++        AddCell(grid, buttons, 0, 1);
++        var box = GuideUi.Box(grid, 116);
++        box.Padding = new Thickness(9, 0, 9, 9); box.Margin = new Thickness(0, 0, 0, 11);
++        return box;
++    }
++
++    Border PlainRow(string text, int r)
++    {
++        var item = GuideUi.Row(GuideUi.Text(text, 30), 62, Sel(r));
++        item.MouseLeftButtonUp += (_, _) => Pick(r, 0);
++        return item;
++    }
++
++    Border MediaBox()
++    {
++        string[] glyphs = { "\uE768", "\uE892", "\uE71A", "\uE893", "\uE8B1", "\uE767" }; // play, prev, stop, next, shuffle, volume
++        var stack = new StackPanel();
++        var buttons = new UniformGrid { Columns = 6, Rows = 1, Height = 52 };
++        for (int c = 0; c < 6; c++)
++        {
++            int picked = c;
++            var button = GuideUi.Gloss(GuideUi.Glyph(glyphs[c], 22), Sel(4, c), enabled: c != 4);
++            button.Margin = new Thickness(c == 0 ? 0 : 1.5, 0, c == 5 ? 0 : 1.5, 0);
++            button.MouseLeftButtonUp += (_, _) => Pick(4, picked);
++            buttons.Children.Add(button);
++        }
++        stack.Children.Add(buttons);
++        var music = GuideUi.Row(GuideUi.Text("Seleccionar música", 30), 60, Sel(5));
++        music.Margin = new Thickness(0, 6, 0, 0);
++        music.MouseLeftButtonUp += (_, _) => Pick(5, 0);
++        stack.Children.Add(music);
++        var box = GuideUi.Box(stack, 137);
++        box.Padding = new Thickness(9); box.Margin = new Thickness(0, 0, 0, 18);
++        return box;
++    }
++
++    // Original artwork only: drop a brand.png next to the executable to show your own logo here.
++    Border Plate()
++    {
++        UIElement content;
++        string logo = System.IO.Path.Combine(AppContext.BaseDirectory, "brand.png");
++        try
++        {
++            if (!File.Exists(logo)) throw new FileNotFoundException();
++            var bmp = new BitmapImage();
++            bmp.BeginInit(); bmp.CacheOption = BitmapCacheOption.OnLoad; bmp.UriSource = new Uri(logo, UriKind.Absolute); bmp.EndInit(); bmp.Freeze();
++            content = new Image { Source = bmp, Stretch = Stretch.Uniform, Margin = new Thickness(14) };
++        }
++        catch
++        {
++            var orb = new Ellipse
++            {
++                Width = 66, Height = 66, Stroke = GuideUi.Fixed("#9A9C92"), StrokeThickness = 1,
++                Fill = new RadialGradientBrush(Color.FromRgb(0xF2, 0xF2, 0xF2), Color.FromRgb(0x7A, 0x7C, 0x74)) { GradientOrigin = new Point(.35, .3) }
++            };
++            var name = GuideUi.Text("GAMES FOR WINDOWS", 38, "#8A8D82", FontWeights.Light);
++            name.Margin = new Thickness(16, 0, 0, 0); name.TextTrimming = TextTrimming.None;
++            var line = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
++            line.Children.Add(orb); line.Children.Add(name);
++            content = line;
++        }
++        return new Border { Height = 113, Background = GuideUi.Fixed("#EEF2DD"), BorderBrush = GuideUi.Themed("#E4D483"), BorderThickness = new Thickness(1), Child = content };
++    }
++
++    StackPanel Heading(string title, string? subtitle)
++    {
++        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
++        panel.Children.Add(GuideUi.Text(title, 34, "#1B1709", FontWeights.SemiBold));
++        string? line = notice ?? subtitle;
++        if (!string.IsNullOrWhiteSpace(line)) panel.Children.Add(GuideUi.Text(line, 18, notice != null ? "#7A1F10" : "#5A4A10"));
++        return panel;
++    }
++
++    int WindowTop(int count) => Math.Clamp(row - VisibleRows / 2, 0, Math.Max(0, count - VisibleRows));
++
++    void AddCounter(int count, int top)
++    {
++        if (count <= VisibleRows) return;
++        var text = GuideUi.Text($"{row + 1} / {count}" + (top > 0 ? "  ▲" : "") + (top + VisibleRows < count ? "  ▼" : ""), 18, "#5A4A10");
++        text.HorizontalAlignment = HorizontalAlignment.Right;
++        body.Children.Add(text);
++    }
++
++    UIElement ListItem(string name, string detail, bool selected, int index)
++    {
++        var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
++        copy.Children.Add(GuideUi.Text(name, 30));
++        if (!string.IsNullOrWhiteSpace(detail)) copy.Children.Add(GuideUi.Text(detail, 18, "#5A4A10"));
++        var item = GuideUi.Row(copy, 76, selected);
++        item.MouseLeftButtonUp += (_, _) => Pick(index, 0);
++        return item;
++    }
++
++    void BuildEntries()
++    {
++        var entries = view == View.Sub ? subEntries! : blades[tab].Entries;
++        body.Children.Add(Heading(view == View.Sub ? subTitle : blades[tab].Name, view == View.Sub ? null : blades[tab].Subtitle));
++        if (entries.Length == 0) { body.Children.Add(GuideUi.Text("No hay elementos.", 24)); return; }
++        row = Math.Clamp(row, 0, entries.Length - 1); col = 0;
++        int top = WindowTop(entries.Length);
++        for (int n = top; n < Math.Min(entries.Length, top + VisibleRows); n++)
++            body.Children.Add(ListItem(entries[n].Name, entries[n].Detail, n == row, n));
++        AddCounter(entries.Length, top);
++    }
++
++    void BuildFiles()
++    {
++        body.Children.Add(Heading("Explorador de juegos", string.IsNullOrWhiteSpace(browserPath) ? "Este equipo · unidades disponibles" : browserPath));
++        if (browserItems.Count == 0)
++        {
++            var empty = GuideUi.Text("No hay unidades o archivos compatibles en esta ubicación.", 24);
++            empty.TextWrapping = TextWrapping.Wrap;
++            body.Children.Add(empty);
++            return;
++        }
++        row = Math.Clamp(row, 0, browserItems.Count - 1); col = 0;
++        int top = WindowTop(browserItems.Count);
++        for (int n = top; n < Math.Min(browserItems.Count, top + VisibleRows); n++)
++        {
++            var item = browserItems[n];
++            bool directory = item is DirectoryInfo;
++            bool parent = browserHasParent && n == 0;
++            string name = parent ? "↰  Carpeta superior" : string.IsNullOrEmpty(item.Name) ? item.FullName : item.Name;
++            string detail = parent ? item.FullName
++                : directory ? (string.IsNullOrWhiteSpace(browserPath) ? "Unidad de almacenamiento" : "Carpeta")
++                : item.Extension.Equals(".xex", StringComparison.OrdinalIgnoreCase) ? "Ejecutable Xbox 360 · requiere entorno compatible"
++                : "Aplicación de Windows · .exe";
++            body.Children.Add(ListItem(name, detail, n == row, n));
++        }
++        AddCounter(browserItems.Count, top);
++    }
++
++    // ───────────────────────── file browser ─────────────────────────
++
++    public void OpenFileBrowser()
++    {
++        // Always start at the drive list, never at a stale path from a previous visit.
++        view = View.Files; browserPath = null; notice = null; row = 0; col = 0;
++        LoadBrowserItems(null);
++        Refresh();
++    }
++
++    // Loads a folder (null = drive list). On failure the previous list is kept and a notice is shown.
++    bool LoadBrowserItems(string? path)
++    {
++        var found = new List<FileSystemInfo>();
++        bool parent = false;
++        try
++        {
++            if (string.IsNullOrWhiteSpace(path))
++            {
++                foreach (var drive in DriveInfo.GetDrives())
++                    if (drive.IsReady) found.Add(new DirectoryInfo(drive.RootDirectory.FullName));
++            }
++            else
++            {
++                var dir = new DirectoryInfo(path);
++                if (dir.Parent != null) { found.Add(dir.Parent); parent = true; }
++                var visible = FileAttributes.Hidden | FileAttributes.System;
++                found.AddRange(dir.EnumerateDirectories().Where(d => (d.Attributes & visible) == 0)
++                    .OrderBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase).Take(MaxBrowserItems));
++                found.AddRange(dir.EnumerateFiles().Where(f => f.Extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) || f.Extension.Equals(".xex", StringComparison.OrdinalIgnoreCase))
++                    .OrderBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase).Take(MaxBrowserItems));
++            }
++        }
++        catch (Exception ex)
++        {
++            notice = "No se pudo abrir la carpeta: " + ex.Message;
++            return false;
++        }
++        browserItems.Clear(); browserItems.AddRange(found);
++        browserHasParent = parent; browserPath = string.IsNullOrWhiteSpace(path) ? null : path; notice = null;
++        return true;
++    }
++
++    void EnterBrowserFolder(string? path)
++    {
++        row = 0;
++        LoadBrowserItems(path);
++        Refresh();
++    }
++
++    void ExecuteBrowserSelected()
++    {
++        if (row < 0 || row >= browserItems.Count) return;
++        var item = browserItems[row];
++        if (item is DirectoryInfo directory) { EnterBrowserFolder(directory.FullName); return; }
++        if (item.Extension.Equals(".xex", StringComparison.OrdinalIgnoreCase))
++        {
++            notice = "Los .xex no se ejecutan directamente en Windows; necesitas un entorno compatible.";
++            Refresh();
++            return;
++        }
++        CloseAnimated();
++        Dispatcher.BeginInvoke(new Action(() => Program.Launch(item.FullName)), DispatcherPriority.Background);
++    }
++
++    void LeaveFileBrowser()
++    {
++        if (!string.IsNullOrWhiteSpace(browserPath))
++        {
++            EnterBrowserFolder(Directory.GetParent(browserPath)?.FullName);
++            return;
++        }
++        view = View.Tab; notice = null; row = 0; col = 0;
++        Refresh();
++    }
++
++    // ───────────────────────── input ─────────────────────────
++
++    void SelectTab(int next)
++    {
++        if (next < 0 || next >= blades.Length || (next == tab && view == View.Tab)) return;
++        view = View.Tab; subEntries = null; notice = null;
++        tab = next; row = 0; col = 0;
++        Refresh();
++        body.BeginAnimation(OpacityProperty, new DoubleAnimation(.45, 1, TimeSpan.FromMilliseconds(140)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
++    }
++
++    void ChangeTab(int direction)
++    {
++        if (!IsVisible || animating || view != View.Tab) return;
++        SelectTab((tab + direction + blades.Length) % blades.Length);
++    }
++
++    int RowCount() => view == View.Files ? browserItems.Count
++        : IsPlayerPage ? PlayerCols.Length
++        : (view == View.Sub ? subEntries!.Length : blades[tab].Entries.Length);
++
++    int ColCount(int r) => IsPlayerPage && r >= 0 && r < PlayerCols.Length ? PlayerCols[r] : 1;
++
++    void Move(int dx, int dy)
++    {
++        if (!IsVisible || animating) return;
++        notice = null;
++        if (dy != 0)
++        {
++            int count = RowCount();
++            if (count == 0) return;
++            row = (row + dy + count) % count;
++            col = Math.Min(col, ColCount(row) - 1);
++            Refresh();
++            return;
++        }
++        if (ColCount(row) > 1) { col = Math.Clamp(col + dx, 0, ColCount(row) - 1); Refresh(); }
++        else ChangeTab(dx);
++    }
++
++    void KeyPressed(object sender, KeyEventArgs e)
++    {
++        switch (e.Key)
++        {
++            case Key.Left: Move(-1, 0); break;
++            case Key.Right: Move(1, 0); break;
++            case Key.Up: Move(0, -1); break;
++            case Key.Down: Move(0, 1); break;
++            case Key.PageUp: ChangeTab(-1); break;
++            case Key.PageDown: ChangeTab(1); break;
++            case Key.Enter: ExecuteSelected(); break;
++            case Key.Escape:
++            case Key.Back: GoBack(); break;
++            case Key.Home when view == View.Files: EnterBrowserFolder(null); break;
++            default: return;
++        }
++        e.Handled = true;
++    }
++
++    void Pick(int r, int c)
++    {
++        if (animating) return;
++        row = r; col = c;
++        Refresh();
++        ExecuteSelected();
++    }
++
++    void GoBack()
++    {
++        if (animating) return;
++        if (view == View.Files) { LeaveFileBrowser(); return; }
++        if (view == View.Sub) { view = View.Tab; subEntries = null; row = 3; col = 0; Refresh(); return; }
++        CloseAnimated();
++    }
++
++    void ExecuteSelected()
++    {
++        if (animating) return;
++        if (view == View.Files) { ExecuteBrowserSelected(); return; }
++        if (IsPlayerPage) { PlayerAction(row, col); return; }
++        var entries = view == View.Sub ? subEntries! : blades[tab].Entries;
++        if (row < 0 || row >= entries.Length) return;
++        var entry = entries[row];
++        if (entry.KeepOpen) { entry.Run(); return; }
++        CloseAnimated();
++        Dispatcher.BeginInvoke(entry.Run, DispatcherPriority.Background);
++    }
++
++    static void SendMediaKey(byte vk)
++    {
++        if (vk == 0) return;
++        keybd_event(vk, 0, 1, UIntPtr.Zero);  // key down (extended)
++        keybd_event(vk, 0, 3, UIntPtr.Zero);  // key up (extended)
++    }
++
++    void PlayerAction(int r, int c)
++    {
++        switch (r)
++        {
++            case 0: EditProfile(); break;
++            case 1: Program.ShowLocalFeatureInfo(this, new[] { "Mensajes", "Amigos", "Invitaciones" }[Math.Clamp(c, 0, 2)]); break;
++            case 2: Program.ShowLocalFeatureInfo(this, "Chat privado"); break;
++            case 3:
++                subEntries = blades[tab].Entries; subTitle = "Configuración personal";
++                view = View.Sub; row = 0; col = 0; Refresh();
++                break;
++            case 4: SendMediaKey(MediaKeys[Math.Clamp(c, 0, MediaKeys.Length - 1)]); break;
++            case 5:
++                CloseAnimated();
++                Dispatcher.BeginInvoke(new Action(Program.OpenMusicFolder), DispatcherPriority.Background);
++                break;
++        }
++    }
++
++    void PollPad()
++    {
++        if (padUnavailable) return;
++        try
++        {
++            for (int user = 0; user < 4; user++)
++            {
++                if (!controller.TryGetState(user, out var state)) { previous[user] = 0; continue; }
++                ushort pressed = (ushort)(state.Buttons & ~previous[user]); previous[user] = state.Buttons;
++                if ((pressed & GuideButton) != 0) { Toggle(); return; }
++                if (!IsVisible || animating) continue;
++                if ((pressed & 0x0100) != 0) ChangeTab(-1);            // LB
++                else if ((pressed & 0x0200) != 0) ChangeTab(1);        // RB
++                else if ((pressed & 0x0004) != 0) Move(-1, 0);         // D-pad left
++                else if ((pressed & 0x0008) != 0) Move(1, 0);
++                else if ((pressed & 0x0001) != 0) Move(0, -1);
++                else if ((pressed & 0x0002) != 0) Move(0, 1);
++                else if ((pressed & 0x1000) != 0) ExecuteSelected();   // A
++                else if ((pressed & 0x2000) != 0) GoBack();            // B
++                else if ((pressed & 0x8000) != 0) CloseAnimated();     // Y
++                else if ((pressed & 0x4000) != 0)                      // X
++                {
++                    if (view == View.Files) EnterBrowserFolder(null);
++                    else { CloseAnimated(); LockWorkStation(); }
++                }
++            }
++        }
++        catch (DllNotFoundException) { DisableGuide(); }
++        catch (EntryPointNotFoundException) { DisableGuide(); }
++        catch (BadImageFormatException) { DisableGuide(); }
++    }
++
++    void DisableGuide() { padUnavailable = true; }
++
++    // ───────────────────────── window behaviour ─────────────────────────
++
++    void RegisterHotkeys()
++    {
++        IntPtr hwnd = new WindowInteropHelper(this).Handle;
++        hotkey1 = RegisterHotKey(hwnd, Hotkey1, ModWin | ModNoRepeat, 0x47);
++        hotkey2 = RegisterHotKey(hwnd, Hotkey2, ModControl | ModAlt | ModNoRepeat, 0x47);
++    }
++
++    IntPtr Hook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
++    {
++        if (message == WmHotkey && (wParam.ToInt32() == Hotkey1 || wParam.ToInt32() == Hotkey2))
++        { Toggle(); handled = true; }
++        return IntPtr.Zero;
++    }
++
++    void Toggle()
++    {
++        if (animating) return;
++        if (IsVisible) { CloseAnimated(); return; }
++        animating = true;
++        IntPtr self = new WindowInteropHelper(this).Handle;
++        IntPtr foreground = GetForegroundWindow();
++        previousWindow = foreground == self ? IntPtr.Zero : foreground;
++        // Every opening starts clean: no stale sub-view, path, notice or selection.
++        view = View.Tab; subEntries = null; notice = null; row = 0; col = 0;
++        browserPath = null; browserItems.Clear();
++        clock.Text = DateTime.Now.ToString("h:mm tt");
++        Refresh();
++        Opacity = 0; slideLeft.X = -70; slideRight.X = 70;
++        Show(); Activate(); Focus();
++        BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(170)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
++        slideRight.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(70, 0, TimeSpan.FromMilliseconds(220)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
++        var slide = new DoubleAnimation(-70, 0, TimeSpan.FromMilliseconds(220)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
++        slide.Completed += (_, _) => { animating = false; Focus(); };
++        slideLeft.BeginAnimation(TranslateTransform.XProperty, slide);
++    }
++
++    void CloseAnimated()
++    {
++        if (!IsVisible || animating) return;
++        animating = true;
++        BeginAnimation(OpacityProperty, new DoubleAnimation(Opacity, 0, TimeSpan.FromMilliseconds(120)));
++        slideRight.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(slideRight.X, 70, TimeSpan.FromMilliseconds(140)));
++        var slide = new DoubleAnimation(slideLeft.X, -70, TimeSpan.FromMilliseconds(140)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
++        slide.Completed += (_, _) =>
++        {
++            Hide();
++            BeginAnimation(OpacityProperty, null); Opacity = 1;
++            slideLeft.BeginAnimation(TranslateTransform.XProperty, null); slideLeft.X = 0;
++            slideRight.BeginAnimation(TranslateTransform.XProperty, null); slideRight.X = 0;
++            animating = false;
++            if (previousWindow != IntPtr.Zero) SetForegroundWindow(previousWindow);
++            previousWindow = IntPtr.Zero;
++        };
++        slideLeft.BeginAnimation(TranslateTransform.XProperty, slide);
++    }
++
++    void Cleanup()
++    {
++        clockTimer.Stop(); padTimer.Stop();
++        if (source != null) source.RemoveHook(Hook);
++        IntPtr hwnd = new WindowInteropHelper(this).Handle;
++        if (hotkey1) UnregisterHotKey(hwnd, Hotkey1);
++        if (hotkey2) UnregisterHotKey(hwnd, Hotkey2);
++    }
++
++    // ───────────────────────── profile and theme dialogs ─────────────────────────
++
++    void RefreshProfileHeader()
++    {
++        profileName = WindowsProfileService.GetDisplayName();
++        initials = WindowsProfileService.GetInitials();
++        avatar = null;
++        try
++        {
++            string? path = WindowsProfileService.GetAvatarPath();
++            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
++            {
++                var bmp = new BitmapImage();
++                bmp.BeginInit(); bmp.CacheOption = BitmapCacheOption.OnLoad; bmp.UriSource = new Uri(path, UriKind.Absolute); bmp.EndInit(); bmp.Freeze();
++                avatar = bmp;
++            }
++        }
++        catch { avatar = null; }
++    }
++
++    static Window Dialog(Window owner, string title, double width, double height) => new()
++    {
++        Title = title, Width = width, Height = height, Owner = owner, Topmost = true,
++        WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize, Background = GuideUi.Fixed("#EEEEEE")
++    };
++
++    public void EditTheme()
++    {
++        var dialog = Dialog(this, "Tema del Guide", 420, 300);
++        var layout = new StackPanel { Margin = new Thickness(20) };
++        layout.Children.Add(GuideUi.Text("Personalización del Guide", 20, "#292929", FontWeights.SemiBold));
++        layout.Children.Add(GuideUi.Text("Color de énfasis y apariencia", 12, "#555555"));
++        var modes = new ComboBox { Margin = new Thickness(0, 10, 0, 10), Padding = new Thickness(6), FontSize = 14 };
++        modes.Items.Add("Clásico Xbox 360 (dorado)");
++        modes.Items.Add("Igual al sistema (color de énfasis)");
++        modes.Items.Add("Aleatorio al abrir");
++        modes.Items.Add("Personalizado");
++        modes.SelectedIndex = GuideTheme.Mode;
++        layout.Children.Add(modes);
++        var custom = new TextBox { Text = GuideTheme.CustomAccent, Margin = new Thickness(0, 0, 0, 10), Padding = new Thickness(6), FontSize = 14, ToolTip = "Color hexadecimal, por ejemplo #FF6A00" };
++        layout.Children.Add(custom);
++        layout.Children.Add(GuideUi.Text("El modo clásico conserva el dorado original. Los demás modos solo cambian el matiz.", 11, "#555555"));
++        var save = new Button { Content = "Guardar tema", Padding = new Thickness(10, 7, 10, 7), Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
++        save.Click += (_, _) =>
++        {
++            if (modes.SelectedIndex == 3 && !System.Text.RegularExpressions.Regex.IsMatch(custom.Text.Trim(), "^#([0-9a-fA-F]{6})$"))
++            {
++                MessageBox.Show(dialog, "Escribe un color hexadecimal válido, por ejemplo #FF6A00.", "Tema", MessageBoxButton.OK, MessageBoxImage.Information);
++                return;
++            }
++            GuideTheme.SetMode(modes.SelectedIndex, custom.Text.Trim());
++            RefreshTheme();
++            dialog.Close();
++        };
++        layout.Children.Add(save);
++        dialog.Content = layout;
++        dialog.ShowDialog();
++    }
++
++    public void EditProfile()
++    {
++        var editor = Dialog(this, "Perfil local", 440, 270);
++        var layout = new StackPanel { Margin = new Thickness(20) };
++        layout.Children.Add(GuideUi.Text("Tu perfil del Guide", 20, "#292929", FontWeights.SemiBold));
++        layout.Children.Add(GuideUi.Text("Nombre visible (inicialmente el de Windows)", 11, "#555555"));
++        var nameBox = new TextBox { Text = WindowsProfileService.GetDisplayName(), Margin = new Thickness(0, 6, 0, 12), Padding = new Thickness(7), FontSize = 14 };
++        layout.Children.Add(nameBox);
++
++        var buttons = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Left };
++        var chooseAvatar = new Button { Content = "Cambiar imagen…", Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 6, 6) };
++        chooseAvatar.Click += (_, _) =>
++        {
++            var picker = new OpenFileDialog { Title = "Selecciona la imagen del perfil", Filter = "Imágenes (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|Todos los archivos (*.*)|*.*", CheckFileExists = true };
++            if (picker.ShowDialog(editor) == true)
++            {
++                try { WindowsProfileService.SetAvatar(picker.FileName); RefreshProfileHeader(); Refresh(); }
++                catch (Exception ex) { MessageBox.Show(editor, ex.Message, "No se pudo cambiar la imagen", MessageBoxButton.OK, MessageBoxImage.Warning); }
++            }
++        };
++        var windowsAvatar = new Button { Content = "Usar imagen de Windows", Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 6, 6) };
++        windowsAvatar.Click += (_, _) => { WindowsProfileService.ResetAvatar(); RefreshProfileHeader(); Refresh(); };
++        var windowsName = new Button { Content = "Nombre de Windows", Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 6, 6) };
++        windowsName.Click += (_, _) => { WindowsProfileService.ResetDisplayName(); nameBox.Text = WindowsProfileService.GetWindowsDisplayName(); RefreshProfileHeader(); Refresh(); };
++        buttons.Children.Add(chooseAvatar); buttons.Children.Add(windowsAvatar); buttons.Children.Add(windowsName);
++        layout.Children.Add(buttons);
++
++        var save = new Button { Content = "Guardar nombre", Padding = new Thickness(12, 6, 12, 6), HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0), MinWidth = 120 };
++        save.Click += (_, _) =>
++        {
++            try { WindowsProfileService.SetDisplayName(nameBox.Text); RefreshProfileHeader(); Refresh(); editor.Close(); }
++            catch (Exception ex) { MessageBox.Show(editor, ex.Message, "Perfil", MessageBoxButton.OK, MessageBoxImage.Warning); }
++        };
++        layout.Children.Add(save);
++        editor.Content = layout;
++        editor.ShowDialog();
++    }
++}
+diff --git a/Program.cs b/Program.cs
+index 1203c1a..b24e64f 100644
+--- a/Program.cs
++++ b/Program.cs
+@@ -1,702 +1,33 @@
+-using Microsoft.Win32;
+ using System;
+ using System.Diagnostics;
+ using System.IO;
+ using System.Runtime.InteropServices;
+ using System.Windows;
+-using System.Windows.Controls;
+-using System.Windows.Input;
+-using System.Windows.Interop;
+-using System.Windows.Media;
+-using System.Windows.Media.Animation;
+-using System.Windows.Threading;
+-
+-internal sealed class GuideChrome : FrameworkElement
+-{
+-    public Brush Gold { get; set; } = new LinearGradientBrush(Color.FromRgb(244,195,29), Color.FromRgb(216,169,29), 0);
+-    protected override void OnRender(DrawingContext dc)
+-    {
+-        base.OnRender(dc);
+-        double w = ActualWidth, h = ActualHeight;
+-        if (w < 40 || h < 80) return;
+-        double edge = Math.Min(w - 25, 245);
+-        var geometry = new StreamGeometry();
+-        using (var ctx = geometry.Open())
+-        {
+-            ctx.BeginFigure(new Point(0, 0), true, true);
+-            ctx.LineTo(new Point(edge - 12, 0), true, false);
+-            ctx.BezierTo(new Point(edge + 9, h * .12), new Point(edge - 20, h * .21), new Point(edge + 2, h * .33), true, false);
+-            ctx.BezierTo(new Point(edge + 13, h * .45), new Point(edge - 14, h * .53), new Point(edge - 2, h * .66), true, false);
+-            ctx.BezierTo(new Point(edge + 4, h * .81), new Point(edge - 27, h * .90), new Point(edge - 12, h), true, false);
+-            ctx.LineTo(new Point(0, h), true, false);
+-        }
+-        geometry.Freeze();
+-        dc.DrawGeometry(Gold, new Pen(new SolidColorBrush(Color.FromRgb(102, 80, 17)), 2), geometry);
+-        dc.PushClip(geometry);
+-        var pattern = new Pen(new SolidColorBrush(Color.FromArgb(24, 118, 83, 0)), 1.5);
+-        for (double y = 12; y < h; y += 43)
+-        for (double x = 12; x < edge - 25; x += 39)
+-        {
+-            var p = new Point(x + (((int)(y / 43) % 2) * 14), y);
+-            dc.DrawEllipse(null, pattern, p, 8, 8);
+-            dc.DrawLine(pattern, new Point(p.X - 5, p.Y - 5), new Point(p.X + 5, p.Y + 5));
+-            dc.DrawLine(pattern, new Point(p.X + 5, p.Y - 5), new Point(p.X - 5, p.Y + 5));
+-        }
+-        dc.Pop();
+-    }
+-}
+-
+-internal sealed record Entry(string Name, string Detail, Action Run);
+-internal sealed record Blade(string Name, string Subtitle, Entry[] Entries);
++using Microsoft.Win32;
+ 
+-internal sealed class Overlay : Window
++internal static class Program
+ {
+-    const int Hotkey1 = 1, Hotkey2 = 2, WmHotkey = 0x312;
+-    const uint ModWin = 8, ModControl = 2, ModAlt = 1, ModNoRepeat = 0x4000;
+-    const ushort Guide = 0x0400;
+-
+-    [DllImport("user32.dll", SetLastError = true)] static extern bool RegisterHotKey(IntPtr h, int id, uint mod, uint key);
+-    [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr h, int id);
+     [DllImport("user32.dll")] static extern bool LockWorkStation();
+-    readonly IControllerProvider controllerProvider = new XInputControllerProvider();
+-    readonly TextBlock profileName = new(), profileInitials = new();
+-    readonly Image profileImage = new();
+-
+-    readonly Blade[] blades;
+-    readonly Border[] bladeTabs;
+-    readonly StackPanel rows = new();
+-    readonly TextBlock title = new(), subtitle = new(), clock = new(), status = new();
+-    readonly TranslateTransform slide = new();
+-    readonly DispatcherTimer clockTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+-    readonly DispatcherTimer padTimer = new(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(55) };
+-    readonly ushort[] previous = new ushort[4];
+-    HwndSource? source;
+-    int activeBlade, activeRow;
+-    bool hotkey1, hotkey2, guideUnavailable, animating, browsingFiles;
+-    string? browserPath;
+-    readonly System.Collections.Generic.List<FileSystemInfo> browserItems = new();
+-
+-    static Color C(string s) => (Color)ColorConverter.ConvertFromString(s);
+-    static string Accent => GuideTheme.CurrentAccent;
+-    static SolidColorBrush B(string s) => new(C(GuideTheme.ResolveColor(s)));
+-    static LinearGradientBrush G(string a, string b) => new(C(GuideTheme.ResolveColor(a)), C(GuideTheme.ResolveColor(b)), 90);
+-    static TextBlock T(string s, double size, string color = "#292929", FontWeight? weight = null) => new()
+-    {
+-        Text = s, FontSize = size, Foreground = B(color), FontWeight = weight ?? FontWeights.Normal,
+-        FontFamily = new FontFamily("Segoe UI"), VerticalAlignment = VerticalAlignment.Center,
+-        TextTrimming = TextTrimming.CharacterEllipsis
+-    };
+-
+-    public Overlay(Blade[] sourceBlades)
+-    {
+-        blades = sourceBlades;
+-        bladeTabs = new Border[blades.Length];
+-        Title = "Games for Windows LIVE 2026";
+-        WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize;
+-        AllowsTransparency = true; Background = new SolidColorBrush(Color.FromArgb(218, 0, 0, 0));
+-        Topmost = true; ShowInTaskbar = false; WindowState = WindowState.Maximized;
+-        UseLayoutRounding = true; SnapsToDevicePixels = true;
+-
+-        var panel = BuildPanel();
+-        panel.RenderTransform = slide;
+-        var host = new Grid { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+-        host.Children.Add(panel); Content = host;
+-
+-        PreviewKeyDown += KeyPressed;
+-        IntPtr handle = new WindowInteropHelper(this).EnsureHandle();
+-        source = HwndSource.FromHwnd(handle);
+-        source?.AddHook(Hook);
+-        RegisterHotkeys();
+-        Closed += (_, _) => Cleanup();
+-        clockTimer.Tick += (_, _) => { clock.Text = DateTime.Now.ToString("h:mm tt"); if (GuideTheme.RefreshAccent()) RefreshTheme(); };
+-        padTimer.Tick += (_, _) => PollPad();
+-        clockTimer.Start(); padTimer.Start();
+-        clock.Text = DateTime.Now.ToString("h:mm tt");
+-        DrawTabs(); DrawRows(); RefreshProfileHeader(); SetStatus();
+-    }
+-
+-    Border BuildPanel()
+-    {
+-        // Compact Xbox 360 Guide overlay: a gold left rail over the dimmed desktop/game.
+-        var outer = new Border
+-        {
+-            Width = 690, Height = 700, Padding = new Thickness(0), CornerRadius = new CornerRadius(3, 24, 24, 3),
+-            Background = B("#17191B"), BorderBrush = B("#6F5A19"), BorderThickness = new Thickness(1),
+-            ClipToBounds = true,
+-            Effect = new System.Windows.Media.Effects.DropShadowEffect { Color = Colors.Black, BlurRadius = 28, ShadowDepth = 0, Opacity = .78 }
+-        };
+-        var shell = new Grid();
+-        shell.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(238) });
+-        shell.ColumnDefinitions.Add(new ColumnDefinition());
+-        outer.Child = shell;
+-
+-        // The original Guide's signature is a curved gold silhouette, not a rectangular sidebar.
+-        var chrome = new GuideChrome { Width = 282, HorizontalAlignment = HorizontalAlignment.Left, IsHitTestVisible = false };
+-        shell.Children.Add(chrome);
+-        var goldRail = new Grid { Background = Brushes.Transparent };
+-        var railContent = new DockPanel { Margin = new Thickness(13, 14, 24, 12) };
+-        var railTop = new StackPanel();
+-        railTop.Children.Add(T("XBOX 360", 13, "#604A08", FontWeights.Bold));
+-        railTop.Children.Add(T("GUIDE", 29, "#342A0C", FontWeights.Bold));
+-        railTop.Children.Add(T("QUICK MENU", 9, "#68500B", FontWeights.SemiBold));
+-        var profile = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 16, 0, 12), Cursor = Cursors.Hand };
+-        var avatar = new Grid { Width = 42, Height = 42, Margin = new Thickness(0, 0, 8, 0) };
+-        profileImage.Width = 42; profileImage.Height = 42; profileImage.Stretch = Stretch.UniformToFill;
+-        profileImage.Visibility = Visibility.Collapsed;
+-        profileInitials.Text = WindowsProfileService.GetInitials();
+-        profileInitials.FontSize = 11; profileInitials.FontWeight = FontWeights.Bold;
+-        profileInitials.Foreground = B("#FFFFFF"); profileInitials.Background = B("#5DAA37");
+-        profileInitials.TextAlignment = TextAlignment.Center;
+-        avatar.Children.Add(profileImage); avatar.Children.Add(profileInitials);
+-        profile.Children.Add(new Border { Width = 42, Height = 42, CornerRadius = new CornerRadius(21), ClipToBounds = true, Child = avatar, BorderBrush = B("#FFF0A1"), BorderThickness = new Thickness(2) });
+-        var profileText = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+-        profileName.FontSize = 13; profileName.Foreground = B("#352A0B"); profileName.FontWeight = FontWeights.Bold;
+-        profileName.MaxWidth = 105; profileName.TextTrimming = TextTrimming.CharacterEllipsis;
+-        profileText.Children.Add(profileName);
+-        profileText.Children.Add(T("0 G", 11, "#665314"));
+-        profile.Children.Add(profileText);
+-        profile.MouseLeftButtonUp += (_, _) => EditProfile();
+-        railTop.Children.Add(profile);
+-        clock.FontSize = 19; clock.Foreground = B("#342A0C"); clock.Margin = new Thickness(0, 0, 0, 13);
+-        railTop.Children.Add(clock);
+-        DockPanel.SetDock(railTop, Dock.Top); railContent.Children.Add(railTop);
+-
+-        var railFooter = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
+-        railFooter.Children.Add(T("A  Seleccionar", 10, "#493A0D", FontWeights.SemiBold));
+-        railFooter.Children.Add(T("B  Volver", 10, "#493A0D", FontWeights.SemiBold));
+-        railFooter.Children.Add(T("X  Opciones", 10, "#493A0D", FontWeights.SemiBold));
+-        DockPanel.SetDock(railFooter, Dock.Bottom); railContent.Children.Add(railFooter);
+-        var nav = new StackPanel { Margin = new Thickness(0, 3, 0, 0) };
+-        for (int n = 0; n < blades.Length; n++)
+-        {
+-            var tab = MakeBlade(blades[n], n);
+-            tab.Height = 45; tab.Margin = new Thickness(0, 2, 0, 2);
+-            tab.BorderThickness = new Thickness(1);
+-            bladeTabs[n] = tab;
+-            nav.Children.Add(tab);
+-        }
+-        var navScroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = nav };
+-        DockPanel.SetDock(navScroll, Dock.Top); railContent.Children.Add(navScroll);
+-        goldRail.Children.Add(railContent);
+-        Grid.SetColumn(goldRail, 0); shell.Children.Add(goldRail);
+-
+-        var content = new DockPanel { Background = G("#202326", "#101113"), Margin = new Thickness(0) };
+-        var header = new Grid { Height = 82, Margin = new Thickness(19, 13, 17, 7) };
+-        header.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+-        header.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+-        header.ColumnDefinitions.Add(new ColumnDefinition());
+-        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+-        title.FontSize = 25; title.FontWeight = FontWeights.SemiBold; title.Foreground = B("#FFFFFF");
+-        header.Children.Add(title);
+-        var liveMark = T("● LOCAL", 10, "#F3D45C", FontWeights.SemiBold);
+-        Grid.SetColumn(liveMark, 1); header.Children.Add(liveMark);
+-        subtitle.FontSize = 11; subtitle.Foreground = B("#A9B0B5"); subtitle.Margin = new Thickness(1, 0, 0, 0);
+-        Grid.SetRow(subtitle, 1); header.Children.Add(subtitle);
+-        DockPanel.SetDock(header, Dock.Top); content.Children.Add(header);
+-        var separator = new Border { Height = 1, Background = B("#414448"), Margin = new Thickness(18, 0, 18, 9) };
+-        DockPanel.SetDock(separator, Dock.Top); content.Children.Add(separator);
+-
+-        var frame = new Border
+-        {
+-            Margin = new Thickness(13, 0, 13, 9), Padding = new Thickness(8),
+-            Background = G("#292C2F", "#1D1F21"), BorderBrush = B("#414448"),
+-            BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(2),
+-            Child = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = rows }
+-        };
+-        content.Children.Add(frame);
+-        status.FontSize = 10; status.Foreground = B("#D5D5D5"); status.Margin = new Thickness(14, 0, 12, 10);
+-        DockPanel.SetDock(status, Dock.Bottom); content.Children.Add(status);
+-        var bottom = new Border { Height = 43, Background = B("#151719"), BorderBrush = B("#35383B"), BorderThickness = new Thickness(0, 1, 0, 0), Padding = new Thickness(7, 0, 8, 0) };
+-        var bottomRow = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+-        bottomRow.Children.Add(Hint("A", "#6ABF40", "Elegir"));
+-        bottomRow.Children.Add(Hint("B", "#C94942", "Atrás"));
+-        bottomRow.Children.Add(Hint("X", "#D6A83B", "Opciones"));
+-        bottomRow.Children.Add(T("  WIN + G", 9, "#92999E", FontWeights.SemiBold));
+-        bottom.Child = bottomRow;
+-        DockPanel.SetDock(bottom, Dock.Bottom); content.Children.Add(bottom);
+-        Grid.SetColumn(content, 1); shell.Children.Add(content);
+-        return outer;
+-    }
+-
+-    static UIElement Hint(string key, string color, string text)
+-    {
+-        var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(12, 0, 0, 0) };
+-        var label = T(key, 10, color == "#D6D6D6" ? "#303030" : "#FFFFFF", FontWeights.Bold);
+-        label.HorizontalAlignment = HorizontalAlignment.Center;
+-        row.Children.Add(new Border { MinWidth = 23, Height = 22, Padding = new Thickness(5, 0, 5, 0), Background = B(color), CornerRadius = new CornerRadius(11), Child = label });
+-        var caption = T(text, 11, "#EEEEEE"); caption.Margin = new Thickness(6, 0, 0, 0); row.Children.Add(caption);
+-        return row;
+-    }
+-
+-    Border MakeBlade(Blade blade, int index)
+-    {
+-        string[] accents = { "#67B53B", "#287DB2", "#8057A8", "#C94B42", "#D49A26", "#388F87" };
+-        var accent = accents[index % accents.Length];
+-        var label = T(blade.Name.ToUpperInvariant(), 13, "#FFFFFF", FontWeights.Bold);
+-        label.HorizontalAlignment = HorizontalAlignment.Center;
+-        label.VerticalAlignment = VerticalAlignment.Center;
+-        label.TextAlignment = TextAlignment.Center;
+-        var sub = T(blade.Subtitle, 9, "#E9E9E9");
+-        sub.HorizontalAlignment = HorizontalAlignment.Center;
+-        sub.TextAlignment = TextAlignment.Center;
+-        var stack = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(4, 2, 4, 5) };
+-        stack.Children.Add(label);
+-        stack.Children.Add(sub);
+-        var marker = new Border { Height = 5, VerticalAlignment = VerticalAlignment.Bottom, Background = B(accent), Visibility = Visibility.Collapsed };
+-        var layers = new Grid();
+-        layers.Children.Add(stack); layers.Children.Add(marker);
+-        var tab = new Border
+-        {
+-            Margin = new Thickness(index == 0 ? 0 : 2, index == 0 ? 0 : 7, 2, 0),
+-            Background = G(index == 0 ? "#7CC84E" : accent, index == 0 ? "#347D22" : "#333333"),
+-            BorderBrush = B("#D9D9D9"), BorderThickness = new Thickness(1, 1, 1, 0),
+-            Child = layers, Cursor = Cursors.Hand
+-        };
+-        tab.MouseLeftButtonUp += (_, _) => SelectBlade(index, true);
+-        return tab;
+-    }
+-
+-    void RefreshTheme()
+-    {
+-        DrawTabs();
+-        DrawRows();
+-        RefreshProfileHeader();
+-    }
+-
+-    public void EditTheme()
+-    {
+-        var dialog = new Window
+-        {
+-            Title = "Tema del Guide",
+-            Width = 420, Height = 300, Owner = this,
+-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+-            ResizeMode = ResizeMode.NoResize, Background = B("#EEEEEE")
+-        };
+-        var layout = new StackPanel { Margin = new Thickness(20) };
+-        layout.Children.Add(T("Personalización del Guide", 20, "#292929", FontWeights.SemiBold));
+-        layout.Children.Add(T("Color de énfasis y apariencia", 12, "#555555"));
+-        var modes = new ComboBox { Margin = new Thickness(0, 10, 0, 10), Padding = new Thickness(6), FontSize = 14 };
+-        modes.Items.Add("Clásico Xbox 360 (dorado)");
+-        modes.Items.Add("Igual al sistema (color de énfasis)");
+-        modes.Items.Add("Aleatorio al abrir");
+-        modes.Items.Add("Personalizado");
+-        modes.SelectedIndex = GuideTheme.Mode;
+-        layout.Children.Add(modes);
+-        var custom = new TextBox { Text = GuideTheme.CustomAccent, Margin = new Thickness(0, 0, 0, 10), Padding = new Thickness(6), FontSize = 14 };
+-        custom.ToolTip = "Color hexadecimal, por ejemplo #FF6A00";
+-        layout.Children.Add(custom);
+-        layout.Children.Add(T("El modo sistema lee el color de énfasis de Windows. El fondo de pantalla no siempre proporciona una paleta fiable.", 11, "#555555"));
+-        var save = new Button { Content = "Guardar tema", Padding = new Thickness(10, 7, 10, 7), Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
+-        save.Click += (_, _) =>
+-        {
+-            if (modes.SelectedIndex == 3 && !System.Text.RegularExpressions.Regex.IsMatch(custom.Text.Trim(), "^#([0-9a-fA-F]{6})$"))
+-            {
+-                MessageBox.Show(dialog, "Escribe un color hexadecimal válido, por ejemplo #FF6A00.", "Tema", MessageBoxButton.OK, MessageBoxImage.Information);
+-                return;
+-            }
+-            GuideTheme.SetMode(modes.SelectedIndex, custom.Text.Trim());
+-            RefreshTheme();
+-            dialog.Close();
+-        };
+-        layout.Children.Add(save);
+-        dialog.Content = layout;
+-        dialog.ShowDialog();
+-    }
+-
+-    void DrawTabs()
+-    {
+-        string[] accents = { "#67B53B", "#287DB2", "#8057A8", "#C94B42", "#D49A26", "#388F87" };
+-        for (int n = 0; n < blades.Length; n++)
+-        {
+-            bool selected = n == activeBlade;
+-            var tab = bladeTabs[n];
+-            string accent = accents[n % accents.Length];
+-            tab.Margin = new Thickness(0, 2, 0, 2);
+-            tab.Background = selected ? G("#536347", "#34442D") : G("#34383B", "#24272A");
+-            tab.BorderBrush = B(selected ? "#A5D66B" : "#484D51");
+-            if (tab.Child is Grid layers)
+-            {
+-                ((Border)layers.Children[1]).Visibility = selected ? Visibility.Visible : Visibility.Collapsed;
+-                if (layers.Children[0] is StackPanel stack)
+-                {
+-                    if (stack.Children[0] is TextBlock label)
+-                    {
+-                        label.Foreground = B(selected ? "#292929" : "#FFFFFF");
+-                        label.FontSize = selected ? 15 : 13;
+-                    }
+-                    if (stack.Children[1] is TextBlock sub)
+-                    {
+-                        sub.Foreground = B(selected ? "#5A5A5A" : "#E9E9E9");
+-                        sub.Text = selected ? blades[n].Subtitle : "";
+-                    }
+-                }
+-            }
+-        }
+-        title.Text = blades[activeBlade].Name;
+-        subtitle.Text = blades[activeBlade].Subtitle;
+-    }
+-
+-    void DrawRows()
+-    {
+-        rows.Children.Clear();
+-        if (browsingFiles) { DrawBrowserRows(); return; }
+-        var entries = blades[activeBlade].Entries;
+-        if (entries.Length == 0) { rows.Children.Add(T("No hay elementos.", 14)); return; }
+-        activeRow = Math.Clamp(activeRow, 0, entries.Length - 1);
+-        for (int n = 0; n < entries.Length; n++)
+-        {
+-            int picked = n; bool selected = n == activeRow;
+-            var copy = new StackPanel { Margin = new Thickness(12, 4, 8, 4) };
+-            copy.Children.Add(T(entries[n].Name, 15, "#FFFFFF", selected ? FontWeights.SemiBold : FontWeights.Normal));
+-            copy.Children.Add(T(entries[n].Detail, 11, selected ? "#F2FFE9" : "#B5BDC2"));
+-            var stripe = new Border { Width = 4, Margin = new Thickness(0, 5, 0, 5), Background = B(selected ? "#D9F5C9" : "#626A70") };
+-            var dock = new DockPanel(); DockPanel.SetDock(stripe, Dock.Left); dock.Children.Add(stripe); dock.Children.Add(copy);
+-            var row = new Border
+-            {
+-                Height = 66, Margin = new Thickness(0, 0, 0, 5), Padding = new Thickness(5, 0, 5, 0),
+-                Background = selected ? G("#6ABF40", "#3B8E2B") : G("#363A3D", "#292C2F"),
+-                BorderBrush = B(selected ? "#A4E17F" : "#454A4E"), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(2), Child = dock, Cursor = Cursors.Hand
+-            };
+-            row.MouseLeftButtonUp += (_, _) => { activeRow = picked; DrawRows(); ExecuteSelected(); };
+-            rows.Children.Add(row);
+-        }
+-    }
+-
+-    public void OpenFileBrowser()
+-    {
+-        // Always start at the drive list, never at a stale path from a previous visit.
+-        browsingFiles = true;
+-        browserPath = null;
+-        browserItems.Clear();
+-        activeRow = 0;
+-        title.Text = "Explorador de juegos";
+-        status.Text = "Selecciona una unidad o carpeta · A/Enter abre · B/Esc vuelve";
+-        LoadBrowserItems();
+-        DrawRows();
+-    }
+-
+-    void LoadBrowserItems()
+-    {
+-        browserItems.Clear();
+-        try
+-        {
+-            if (string.IsNullOrWhiteSpace(browserPath))
+-            {
+-                foreach (var drive in DriveInfo.GetDrives())
+-                    if (drive.IsReady) browserItems.Add(new DirectoryInfo(drive.RootDirectory.FullName));
+-            }
+-            else
+-            {
+-                var dir = new DirectoryInfo(browserPath);
+-                if (dir.Parent != null) browserItems.Add(dir.Parent);
+-                foreach (var child in dir.EnumerateDirectories()) browserItems.Add(child);
+-                foreach (var file in dir.EnumerateFiles())
+-                    if (file.Extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) || file.Extension.Equals(".xex", StringComparison.OrdinalIgnoreCase)) browserItems.Add(file);
+-            }
+-        }
+-        catch (Exception ex) { status.Text = "No se pudo leer la carpeta: " + ex.Message; }
+-        activeRow = Math.Clamp(activeRow, 0, Math.Max(0, browserItems.Count - 1));
+-    }
+-
+-    void DrawBrowserRows()
+-    {
+-        string location = string.IsNullOrWhiteSpace(browserPath) ? "Este equipo · unidades disponibles" : browserPath;
+-        title.Text = "Explorador de juegos";
+-
+-        var toolbar = new WrapPanel { Margin = new Thickness(2, 0, 2, 10) };
+-        var back = new Button { Content = "← Carpeta anterior", Padding = new Thickness(8, 5, 8, 5), Margin = new Thickness(0, 0, 6, 5), IsEnabled = !string.IsNullOrWhiteSpace(browserPath) };
+-        back.Click += (_, _) => GoBrowserParent();
+-        var root = new Button { Content = "↺ Inicio / unidades", Padding = new Thickness(8, 5, 8, 5), Margin = new Thickness(0, 0, 6, 5) };
+-        root.Click += (_, _) => ResetBrowserPath();
+-        toolbar.Children.Add(back); toolbar.Children.Add(root);
+-        rows.Children.Add(toolbar);
+-        var pathLabel = T(location, 10, "#F3D45C", FontWeights.SemiBold);
+-        pathLabel.Margin = new Thickness(3, 0, 3, 9);
+-        pathLabel.TextWrapping = TextWrapping.Wrap;
+-        rows.Children.Add(pathLabel);
+-
+-        if (browserItems.Count == 0)
+-        {
+-            rows.Children.Add(T("No hay unidades o archivos compatibles en esta ubicación.", 13, "#FFFFFF"));
+-            return;
+-        }
+-        for (int n = 0; n < browserItems.Count; n++)
+-        {
+-            int picked = n; bool selected = n == activeRow;
+-            var item = browserItems[n]; bool directory = item is DirectoryInfo;
+-            string name = item.Name;
+-            if (string.IsNullOrEmpty(name)) name = item.FullName;
+-            string detail = directory ? (string.IsNullOrWhiteSpace(browserPath) ? "Unidad de almacenamiento" : "Carpeta") : item.Extension.Equals(".xex", StringComparison.OrdinalIgnoreCase) ? "Ejecutable Xbox 360 · requiere entorno compatible" : "Aplicación de Windows · .exe";
+-            var copy = new StackPanel { Margin = new Thickness(10, 3, 7, 3) };
+-            copy.Children.Add(T((directory ? "📁  " : item.Extension.Equals(".xex", StringComparison.OrdinalIgnoreCase) ? "X  " : "▶  ") + name, 13, selected ? "#FFFFFF" : "#E2E2E2", selected ? FontWeights.SemiBold : FontWeights.Normal));
+-            copy.Children.Add(T(detail, 10, selected ? "#F8EAA6" : "#B8B8B8"));
+-            var stripe = new Border { Width = 3, Margin = new Thickness(0, 4, 0, 4), Background = B(selected ? "#F4C31D" : "#777777") };
+-            var dock = new DockPanel(); DockPanel.SetDock(stripe, Dock.Left); dock.Children.Add(stripe); dock.Children.Add(copy);
+-            var row = new Border { MinHeight = 51, Margin = new Thickness(0, 0, 0, 4), Padding = new Thickness(4, 0, 4, 0), Background = selected ? G("#8A7626", "#5C4D19") : G("#424242", "#303030"), BorderBrush = B(selected ? "#F4C31D" : "#555555"), BorderThickness = new Thickness(1), Child = dock, Cursor = Cursors.Hand };
+-            row.MouseLeftButtonUp += (_, _) => { activeRow = picked; DrawRows(); ExecuteSelected(); };
+-            rows.Children.Add(row);
+-        }
+-    }
+-
+-    void GoBrowserParent()
+-    {
+-        if (string.IsNullOrWhiteSpace(browserPath)) return;
+-        var parent = Directory.GetParent(browserPath);
+-        browserPath = parent?.FullName;
+-        activeRow = 0;
+-        LoadBrowserItems();
+-        DrawRows();
+-    }
+-
+-    void ResetBrowserPath()
+-    {
+-        browserPath = null;
+-        activeRow = 0;
+-        LoadBrowserItems();
+-        DrawRows();
+-    }
+-
+-    void ExecuteBrowserSelected()
+-    {
+-        if (activeRow < 0 || activeRow >= browserItems.Count) return;
+-        var item = browserItems[activeRow];
+-        if (item is DirectoryInfo directory)
+-        {
+-            browserPath = directory.FullName;
+-            activeRow = 0;
+-            LoadBrowserItems(); DrawRows();
+-            return;
+-        }
+-        if (item.Extension.Equals(".xex", StringComparison.OrdinalIgnoreCase))
+-        {
+-            status.Text = "Los .xex no se ejecutan directamente en Windows; necesitas un entorno compatible.";
+-            return;
+-        }
+-        CloseAnimated();
+-        Dispatcher.BeginInvoke(new Action(() => Program.LaunchFromBrowser(item.FullName)), DispatcherPriority.Background);
+-    }
+ 
+-    void LeaveFileBrowser()
++    internal static void ShowLocalFeatureInfo(Window? owner, string feature)
+     {
+-        if (!browsingFiles) { CloseAnimated(); return; }
+-        if (!string.IsNullOrWhiteSpace(browserPath))
+-        {
+-            GoBrowserParent();
+-            return;
+-        }
+-        browsingFiles = false; activeRow = 0; DrawTabs(); DrawRows(); SetStatus();
++        string text = $"{feature} forma parte de la interfaz recreada, pero esta compilación funciona en modo local y no está conectada a Xbox LIVE. No se mostrarán amigos, mensajes ni estados inventados.";
++        const string caption = "Games for Windows LIVE 2026 · modo local";
++        if (owner != null) MessageBox.Show(owner, text, caption, MessageBoxButton.OK, MessageBoxImage.Information);
++        else MessageBox.Show(text, caption, MessageBoxButton.OK, MessageBoxImage.Information);
+     }
+ 
+-    void RegisterHotkeys()
+-    {
+-        IntPtr hwnd = new WindowInteropHelper(this).Handle;
+-        hotkey1 = RegisterHotKey(hwnd, Hotkey1, ModWin | ModNoRepeat, 0x47);
+-        hotkey2 = RegisterHotKey(hwnd, Hotkey2, ModControl | ModAlt | ModNoRepeat, 0x47);
+-        if (!hotkey2) status.Text = "Atajo alternativo ocupado; el hook global intenta capturar Win+G.";
+-    }
++    internal static void OpenMusicFolder() => Launch("explorer.exe", Environment.GetFolderPath(Environment.SpecialFolder.MyMusic));
+ 
+-    IntPtr Hook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
++    internal static void Launch(string target, string args = "")
+     {
+-        if (message == WmHotkey && (wParam.ToInt32() == Hotkey1 || wParam.ToInt32() == Hotkey2))
+-        { Toggle(); handled = true; }
+-        return IntPtr.Zero;
+-    }
+-
+-    void Toggle()
+-    {
+-        if (animating) return;
+-        if (IsVisible) { CloseAnimated(); return; }
+-        animating = true; clock.Text = DateTime.Now.ToString("h:mm tt");
+-        Show(); Activate(); Focus(); Opacity = 0; slide.Y = -22;
+-        BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(170)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+-        var animation = new DoubleAnimation(-22, 0, TimeSpan.FromMilliseconds(210)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+-        animation.Completed += (_, _) => { animating = false; Focus(); };
+-        slide.BeginAnimation(TranslateTransform.YProperty, animation);
+-    }
+-
+-    void CloseAnimated()
+-    {
+-        if (!IsVisible || animating) return;
+-        animating = true;
+-        BeginAnimation(OpacityProperty, new DoubleAnimation(Opacity, 0, TimeSpan.FromMilliseconds(120)));
+-        var animation = new DoubleAnimation(slide.Y, -18, TimeSpan.FromMilliseconds(140)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseIn } };
+-        animation.Completed += (_, _) => { Hide(); Opacity = 1; slide.Y = 0; animating = false; };
+-        slide.BeginAnimation(TranslateTransform.YProperty, animation);
+-    }
+-
+-    void SelectBlade(int next, bool animate)
+-    {
+-        if (next == activeBlade || next < 0 || next >= blades.Length) return;
+-        activeBlade = next; activeRow = 0; DrawTabs(); DrawRows();
+-        if (animate) rows.BeginAnimation(OpacityProperty, new DoubleAnimation(.45, 1, TimeSpan.FromMilliseconds(140)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+-    }
+-
+-    void Move(int dx, int dy)
+-    {
+-        if (!IsVisible || animating) return;
+-        if (dx != 0) { SelectBlade((activeBlade + dx + blades.Length) % blades.Length, true); return; }
+-        int count = browsingFiles ? browserItems.Count : blades[activeBlade].Entries.Length;
+-        if (count == 0) return;
+-        activeRow = (activeRow + dy + count) % count; DrawRows();
+-    }
+-
+-    void KeyPressed(object sender, KeyEventArgs e)
+-    {
+-        switch (e.Key)
+-        {
+-            case Key.Left: Move(-1, 0); e.Handled = true; break;
+-            case Key.Right: Move(1, 0); e.Handled = true; break;
+-            case Key.Up: Move(0, -1); e.Handled = true; break;
+-            case Key.Down: Move(0, 1); e.Handled = true; break;
+-            case Key.Enter: ExecuteSelected(); e.Handled = true; break;
+-            case Key.Escape:
+-            case Key.Back: LeaveFileBrowser(); e.Handled = true; break;
+-        }
+-    }
+-
+-    void ExecuteSelected()
+-    {
+-        if (animating) return;
+-        if (browsingFiles) { ExecuteBrowserSelected(); return; }
+-        var entries = blades[activeBlade].Entries;
+-        if (activeRow < 0 || activeRow >= entries.Length) return;
+-        Action action = entries[activeRow].Run;
+-        CloseAnimated();
+-        Dispatcher.BeginInvoke(action, DispatcherPriority.Background);
+-    }
+-
+-    void PollPad()
+-    {
+-        if (guideUnavailable) return;
+         try
+         {
+-            for (int user = 0; user < 4; user++)
+-            {
+-                if (!controllerProvider.TryGetState(user, out var state)) { previous[user] = 0; continue; }
+-                ushort pressed = (ushort)(state.Buttons & ~previous[user]); previous[user] = state.Buttons;
+-                if ((pressed & Guide) != 0) { Toggle(); return; }
+-                if (!IsVisible || animating) continue;
+-                if ((pressed & 0x0100) != 0 || (pressed & 0x0004) != 0) Move(-1, 0);
+-                else if ((pressed & 0x0200) != 0 || (pressed & 0x0008) != 0) Move(1, 0);
+-                else if ((pressed & 0x0001) != 0) Move(0, -1);
+-                else if ((pressed & 0x0002) != 0) Move(0, 1);
+-                else if ((pressed & 0x1000) != 0) ExecuteSelected();
+-                else if ((pressed & 0x2000) != 0 || (pressed & 0x8000) != 0) CloseAnimated();
+-                else if ((pressed & 0x4000) != 0) { CloseAnimated(); LockWorkStation(); }
+-            }
++            var start = new ProcessStartInfo(target, args) { UseShellExecute = true };
++            // Games expect to start in their own folder.
++            if (File.Exists(target)) start.WorkingDirectory = Path.GetDirectoryName(target) ?? "";
++            Process.Start(start);
+         }
+-        catch (DllNotFoundException) { DisableGuide(); }
+-        catch (EntryPointNotFoundException) { DisableGuide(); }
+-        catch (BadImageFormatException) { DisableGuide(); }
+-    }
+-
+-    void RefreshProfileHeader()
+-    {
+-        profileName.Text = WindowsProfileService.GetDisplayName();
+-        profileInitials.Text = WindowsProfileService.GetInitials();
+-        string? path = WindowsProfileService.GetAvatarPath();
+-        try
+-        {
+-            if (!string.IsNullOrWhiteSpace(path) && System.IO.File.Exists(path))
+-            {
+-                profileImage.Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(path, UriKind.Absolute));
+-                profileImage.Visibility = Visibility.Visible;
+-                profileInitials.Visibility = Visibility.Collapsed;
+-                return;
+-            }
+-        }
+-        catch { }
+-        profileImage.Source = null;
+-        profileImage.Visibility = Visibility.Collapsed;
+-        profileInitials.Visibility = Visibility.Visible;
+-    }
+-
+-    void EditProfile()
+-    {
+-        var editor = new Window
+-        {
+-            Title = "Perfil local",
+-            Width = 440,
+-            Height = 270,
+-            Owner = this,
+-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+-            ResizeMode = ResizeMode.NoResize,
+-            Background = B("#E7E7E7")
+-        };
+-        var layout = new StackPanel { Margin = new Thickness(20) };
+-        layout.Children.Add(T("Tu perfil del Guide", 20, "#292929", FontWeights.SemiBold));
+-        layout.Children.Add(T("Nombre visible (inicialmente el de Windows)", 11, "#555555"));
+-        var nameBox = new TextBox { Text = WindowsProfileService.GetDisplayName(), Margin = new Thickness(0, 6, 0, 12), Padding = new Thickness(7), FontSize = 14 };
+-        layout.Children.Add(nameBox);
+-
+-        var buttons = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Left };
+-        var chooseAvatar = new Button { Content = "Cambiar imagen…", Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 6, 6) };
+-        chooseAvatar.Click += (_, _) =>
+-        {
+-            var picker = new OpenFileDialog { Title = "Selecciona la imagen del perfil", Filter = "Imágenes (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp|Todos los archivos (*.*)|*.*", CheckFileExists = true };
+-            if (picker.ShowDialog(editor) == true)
+-            {
+-                try { WindowsProfileService.SetAvatar(picker.FileName); RefreshProfileHeader(); }
+-                catch (Exception ex) { MessageBox.Show(editor, ex.Message, "No se pudo cambiar la imagen", MessageBoxButton.OK, MessageBoxImage.Warning); }
+-            }
+-        };
+-        var windowsAvatar = new Button { Content = "Usar imagen de Windows", Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 6, 6) };
+-        windowsAvatar.Click += (_, _) => { WindowsProfileService.ResetAvatar(); RefreshProfileHeader(); };
+-        var windowsName = new Button { Content = "Nombre de Windows", Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 6, 6) };
+-        windowsName.Click += (_, _) => { WindowsProfileService.ResetDisplayName(); nameBox.Text = WindowsProfileService.GetWindowsDisplayName(); RefreshProfileHeader(); };
+-        buttons.Children.Add(chooseAvatar); buttons.Children.Add(windowsAvatar); buttons.Children.Add(windowsName);
+-        layout.Children.Add(buttons);
+-
+-        var save = new Button { Content = "Guardar nombre", Padding = new Thickness(12, 6, 12, 6), HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0), MinWidth = 120 };
+-        save.Click += (_, _) =>
+-        {
+-            try { WindowsProfileService.SetDisplayName(nameBox.Text); RefreshProfileHeader(); editor.Close(); }
+-            catch (Exception ex) { MessageBox.Show(editor, ex.Message, "Perfil", MessageBoxButton.OK, MessageBoxImage.Warning); }
+-        };
+-        layout.Children.Add(save);
+-        editor.Content = layout;
+-        editor.ShowDialog();
+-    }
+-
+-    void DisableGuide()
+-    {
+-        guideUnavailable = true;
+-        status.Text = "Guide no disponible; usa teclado o Ctrl+Alt+G.";
+-    }
+-
+-    void SetStatus()
+-    {
+-        status.Text = guideUnavailable ? "Guide no disponible; usa teclado o Ctrl+Alt+G." : "Flechas / LB-RB · Enter / A abre · Esc / B cierra";
+-    }
+-
+-    void Cleanup()
+-    {
+-        clockTimer.Stop(); padTimer.Stop();
+-        if (source != null) source.RemoveHook(Hook);
+-        IntPtr hwnd = new WindowInteropHelper(this).Handle;
+-        if (hotkey1) UnregisterHotKey(hwnd, Hotkey1);
+-        if (hotkey2) UnregisterHotKey(hwnd, Hotkey2);
+-    }
+-}
+-
+-internal static class Program
+-{
+-    [DllImport("user32.dll")] static extern bool LockWorkStation();
+-
+-    internal static void LaunchFromBrowser(string target) => Launch(target);
+-
+-    static void ShowLocalFeatureInfo(string feature)
+-    {
+-        MessageBox.Show(
+-            $"{feature} forma parte de la interfaz recreada, pero esta compilación funciona en modo local y no está conectada a Xbox LIVE. No se mostrarán amigos, mensajes ni estados inventados.",
+-            "Games for Windows LIVE 2026 · modo local",
+-            MessageBoxButton.OK,
+-            MessageBoxImage.Information);
+-    }
+-
+-    static void Launch(string target, string args = "")
+-    {
+-        try { Process.Start(new ProcessStartInfo(target, args) { UseShellExecute = true }); }
+         catch (Exception ex)
+         {
+             MessageBox.Show($"No se pudo abrir el elemento.\n\n{target}\n{ex.Message}", "Games for Windows LIVE 2026", MessageBoxButton.OK, MessageBoxImage.Warning);
+@@ -716,29 +47,23 @@ internal static class Program
+         Overlay? overlay = null;
+         var blades = new[]
+         {
+-            new Blade("Perfil", "Tu sesión local · sin Xbox LIVE", new[]
++            // Player tab: gamer card, Community, media transport. Its entries are the "Configuración personal" sub-menu.
++            new Blade("Jugador", "", new[]
+             {
+                 new Entry("Cuenta de Windows", "Abrir la configuración del perfil de Windows", () => Launch("ms-settings:yourinfo")),
+-                new Entry("Configuración", "Abrir configuración de Windows", () => Launch("ms-settings:")),
++                new Entry("Editar perfil local", "Nombre visible e imagen del Guide", () => overlay?.EditProfile(), true),
++                new Entry("Tema del Guide", "Color clásico, aleatorio, sistema o personalizado", () => overlay?.EditTheme(), true),
+                 new Entry("Diagnóstico de mandos", "Jugadores XInput y batería disponible", () => ControllerDiagnosticsWindow.Show(null)),
+-                new Entry("Tema del Guide", "Color clásico, aleatorio, sistema o personalizado", () => overlay?.EditTheme()),
+-                new Entry("Explorador de archivos", "Acceder a unidades y carpetas", () => Launch("explorer.exe")),
++                new Entry("Configuración de Windows", "Abrir configuración de Windows", () => Launch("ms-settings:")),
+                 new Entry("Bloquear equipo", "Volver a la pantalla de bloqueo", () => LockWorkStation())
+-            }),
++            }, true),
+             new Blade("Juegos", "Tiendas y ejecutables locales", new[]
+             {
+                 new Entry("Steam", "Abrir biblioteca de Steam", () => Launch("steam://open/main")),
+                 new Entry("Epic Games Launcher", "Abrir Epic Games", () => Launch("com.epicgames.launcher://")),
+                 new Entry("GOG GALAXY", "Abrir GOG GALAXY", () => Launch("goggalaxy://")),
+-                new Entry("Explorar archivos de juegos", "Explorador integrado · unidades, carpetas y .exe", () => overlay?.OpenFileBrowser()),
+-                new Entry("Carpeta de programas", "Explorar Archivos de programa dentro del Guide", () => overlay?.OpenFileBrowser())
+-            }),
+-            new Blade("Social", "Amigos y comunicación · modo local", new[]
+-            {
+-                new Entry("Amigos", "La lista LIVE no está conectada", () => ShowLocalFeatureInfo("Amigos")),
+-                new Entry("Mensajes", "Mensajería Xbox LIVE no disponible sin backend", () => ShowLocalFeatureInfo("Mensajes")),
+-                new Entry("Grupo / chat de voz", "No hay servicio de grupo conectado", () => ShowLocalFeatureInfo("Grupo y chat de voz")),
+-                new Entry("Invitaciones", "Las invitaciones online no se reciben en modo local", () => ShowLocalFeatureInfo("Invitaciones"))
++                new Entry("Explorar archivos de juegos", "Explorador integrado · unidades, carpetas y .exe", () => overlay?.OpenFileBrowser(), true),
++                new Entry("Elegir ejecutable…", "Seleccionar un .exe con el diálogo de Windows", PickGame)
+             }),
+             new Blade("Medios", "Accesos multimedia de Windows", new[]
+             {
+@@ -749,6 +74,7 @@ internal static class Program
+             }),
+             new Blade("Sistema", "Herramientas · sin servicios propios", new[]
+             {
++                new Entry("Explorador de Windows", "Abrir el Explorador de archivos", () => Launch("explorer.exe")),
+                 new Entry("Administrador de tareas", "Procesos y rendimiento", () => Launch("taskmgr.exe")),
+                 new Entry("Monitor de recursos", "CPU, memoria y disco", () => Launch("resmon.exe")),
+                 new Entry("Sonido", "Dispositivos de reproducción", () => Launch("mmsys.cpl")),
+diff --git a/README.md b/README.md
+index 732a1a2..4d85109 100644
+--- a/README.md
++++ b/README.md
+@@ -4,7 +4,7 @@ A lightweight, local-only overlay inspired by the original 2007 Games for Window
+ 
+ ## Goals
+ 
+-- Classic blade navigation, metallic panels, Xbox-green accents, and open/close/selection transitions.
++- Compact Xbox 360 Guide: gold panel with curved edge and Player tab, gamer card, Community, media transport, controller-button footer, other tabs receding on the right edge, and open/close/selection transitions. See `docs/guide-fidelity.md`.
+ - Windows 10 22H2 and Windows 11 compatibility target.
+ - Win+G hotkey, with Ctrl+Alt+G fallback when another app owns Win+G.
+ - Optional controller navigation and Guide-button detection through the commonly used undocumented XInput ordinal 100.
+@@ -38,8 +38,8 @@ Publish output: bin/Release/net8.0-windows/win-x64/publish/.
+ 
+ - Win+G: open/close (unless Windows Game Bar or another app owns the hotkey).
+ - Ctrl+Alt+G: fallback hotkey.
+-- Arrow keys: navigate; Enter: launch; Esc / Backspace: close.
+-- Controller: Guide toggles; D-pad or LB/RB navigates; A selects; B/Back closes.
++- Arrow keys: navigate (Left/Right move inside button rows, otherwise switch tab; PageUp/PageDown always switch tab); Enter: launch; Esc / Backspace: back (closes from the top level).
++- Controller: Guide toggles; D-pad navigates, LB/RB switch tab; A selects; B goes back; Y closes; X locks the PC (in the file browser: back to drives).
+ 
+ The Guide button is not part of the documented public XInput API. It may be unavailable on some Windows builds, controller models, or XInput runtimes. The overlay falls back to keyboard input if the undocumented entry point is missing.
+ 
+diff --git a/docs/guide-fidelity.md b/docs/guide-fidelity.md
+new file mode 100644
+index 0000000..e887616
+--- /dev/null
++++ b/docs/guide-fidelity.md
+@@ -0,0 +1,27 @@
++# Guide fidelity notes (reference: `{4938…}` target screenshot, 1920×1080)
++
++The Guide is drawn in an 830×1080 design space (`GuideChrome`, `GuideUi`, `Overlay`) inside a `Viewbox`,
++so it scales uniformly with screen height like the original.
++
++## Measured from the reference (not eyeballed)
++
++| Element | Value |
++|---|---|
++| Body gold | `#F5C41F` → `#FDD53A` (centre) → `#E3B725` (right), horizontal |
++| Header band (0–141 px) | `#4B431A` → `#756516` → `#A78C0D` → `#C8A40E` → `#E9B818`, cream outline `#E8E9CA`, rounded lower-right corner |
++| Footer band (858–1080 px) | `#3F3B1E` → `#655819` → `#867213` → `#A78C0D` → `#BC9C0E` → `#D1AB0E` → `#DDB510` |
++| Edge | dark rule `#5B552E` (4 px), cream rule `#FAF2B9` (4 px, +8 px), outer outline `#46432F`; point tables in `GuideChrome` |
++| Player tab shoulder | starts y≈130, outer x≈823, label runs top-to-bottom at x≈770 |
++| Content column | x 154–709: gamer card 165–286, Community 303–419, rows 62 px, media box 572–709, logo plate 727–840 |
++| Other tabs | dark `#3A3A3A–#454545` strips on the right edge, ring body `#343536` |
++
++A Python re-render of the same point tables matched the reference outer edge within 1–3 px for the full height.
++
++## Known differences
++
++- Not yet compared against a real Windows screenshot (the build was authored without a Windows runtime).
++- Typeface is Segoe UI; the console used a different face.
++- No avatar render, no Xbox/Windows logo artwork: the plate shows an original orb + wordmark, or `brand.png` placed next to the executable.
++- Community counters, Gamerscore and online status are intentionally not simulated (offline profile).
++- Shuffle button is shown disabled (Windows has no global shuffle key).
++- Receding tabs are simplified rectangles with a rounded top-left corner.
+-- 
+2.43.0
+
