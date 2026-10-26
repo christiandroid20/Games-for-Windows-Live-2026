@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
-using Microsoft.Win32;
 
 internal static class Program
 {
@@ -34,12 +33,6 @@ internal static class Program
         }
     }
 
-    static void PickGame()
-    {
-        var dialog = new OpenFileDialog { Title = "Selecciona el ejecutable del juego", Filter = "Aplicaciones (*.exe)|*.exe|Todos los archivos (*.*)|*.*", CheckFileExists = true };
-        if (dialog.ShowDialog() == true) Launch(dialog.FileName);
-    }
-
     [STAThread]
     static void Main()
     {
@@ -62,8 +55,7 @@ internal static class Program
                 new Entry("Steam", "Abrir biblioteca de Steam", () => Launch("steam://open/main")),
                 new Entry("Epic Games Launcher", "Abrir Epic Games", () => Launch("com.epicgames.launcher://")),
                 new Entry("GOG GALAXY", "Abrir GOG GALAXY", () => Launch("goggalaxy://")),
-                new Entry("Explorar archivos de juegos", "Explorador integrado · unidades, carpetas y .exe", () => overlay?.OpenFileBrowser(), true),
-                new Entry("Elegir ejecutable…", "Seleccionar un .exe con el diálogo de Windows", PickGame)
+                new Entry("Biblioteca local de juegos", "Explorador integrado · unidades, carpetas y .exe; elige sin salir del Guide", () => overlay?.OpenFileBrowser(), true)
             }),
             new Blade("Medios", "Accesos multimedia de Windows", new[]
             {
