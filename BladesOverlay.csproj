@@ -9,5 +9,6 @@
   <ItemGroup>
     <Compile Remove="AchievementTest/**/*.cs" />
     <Content Include="Assets\GamerPictures\*.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Downloads.zip" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
