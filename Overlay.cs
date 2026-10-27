@@ -45,6 +45,7 @@ internal sealed class Overlay : Window
     enum View { Tab, Sub, Files }
 
     readonly IControllerProvider controller = new XInputControllerProvider();
+    readonly AchievementBridge achievementBridge = new();
     readonly Blade[] blades;
     readonly GuideChrome chrome = new();
     readonly Canvas leftCanvas = new() { Width = GuideChrome.DesignWidth, Height = GuideChrome.DesignHeight };
@@ -80,6 +81,8 @@ internal sealed class Overlay : Window
         UseLayoutRounding = true; SnapsToDevicePixels = true;
 
         BuildLayout();
+        achievementBridge.AchievementReceived += achievement => Dispatcher.BeginInvoke(new Action(() => AchievementToastWindow.ShowToast(achievement)));
+        achievementBridge.Start();
         PreviewKeyDown += KeyPressed;
         PreviewMouseWheel += (_, e) => { Move(0, e.Delta > 0 ? -1 : 1); e.Handled = true; };
 
@@ -692,6 +695,7 @@ internal sealed class Overlay : Window
 
     void Cleanup()
     {
+        achievementBridge.Dispose();
         clockTimer.Stop(); padTimer.Stop();
         if (source != null) source.RemoveHook(Hook);
         IntPtr hwnd = new WindowInteropHelper(this).Handle;
