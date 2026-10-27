@@ -833,6 +833,35 @@ internal sealed class Overlay : Window
         dialog.ShowDialog();
     }
 
+    static string EnsureGamerPicturesGallery()
+    {
+        string gallery = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "GamesForWindowsLIVE2026", "GamerPictures");
+        Directory.CreateDirectory(gallery);
+
+        // Downloads.zip is shipped beside the executable. Extract PNGs once so the
+        // existing profile picker can use the images offline without requiring a manual install.
+        string archive = System.IO.Path.Combine(AppContext.BaseDirectory, "Downloads.zip");
+        if (File.Exists(archive) && !Directory.EnumerateFiles(gallery, "*.png").Any())
+        {
+            using var zip = System.IO.Compression.ZipFile.OpenRead(archive);
+            foreach (var entry in zip.Entries)
+            {
+                if (!entry.FullName.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                string fileName = System.IO.Path.GetFileName(entry.FullName);
+                if (string.IsNullOrWhiteSpace(fileName))
+                    continue;
+                string target = System.IO.Path.Combine(gallery, fileName);
+                using var source = entry.Open();
+                using var destination = File.Create(target);
+                source.CopyTo(destination);
+            }
+        }
+        return gallery;
+    }
+
     public void EditProfile()
     {
         var editor = Dialog(this, "Perfil local", 440, 270);
@@ -846,10 +875,10 @@ internal sealed class Overlay : Window
         var classicAvatar = new Button { Content = "Galería Xbox 360…", Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 6, 6) };
         classicAvatar.Click += (_, _) =>
         {
-            string gallery = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "GamerPictures");
+            string gallery = EnsureGamerPicturesGallery();
             if (!Directory.Exists(gallery) || !Directory.EnumerateFiles(gallery, "*.png").Any())
             {
-                MessageBox.Show(editor, "No se encontró la galería integrada. Comprueba que Assets/GamerPictures contenga los PNG.", "Galería de perfiles", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show(editor, "No se encontraron PNG en Downloads.zip ni en la galería local. Comprueba que el ZIP esté junto al ejecutable.", "Galería de perfiles", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
             var picker = new Window { Title = "Imágenes de jugador · Xbox 360", Width = 590, Height = 520, Owner = editor, Topmost = true, WindowStartupLocation = WindowStartupLocation.CenterOwner, Background = GuideUi.Fixed("#EEEEEE"), MinWidth = 450, MinHeight = 360 };
