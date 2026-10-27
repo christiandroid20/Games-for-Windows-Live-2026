@@ -91,6 +91,7 @@ internal sealed class Overlay : Window
         BuildLayout();
         achievementBridge.AchievementReceived += achievement => Dispatcher.BeginInvoke(new Action(() => AchievementToastWindow.ShowToast(achievement)));
         achievementBridge.Start();
+        ShowLocalAchievement("welcome");
         PreviewKeyDown += KeyPressed;
         PreviewMouseWheel += (_, e) => { Move(0, e.Delta > 0 ? -1 : 1); e.Handled = true; };
 
@@ -346,6 +347,7 @@ internal sealed class Overlay : Window
         {
             trackedProcess = processKey;
             gameSessionStarted = DateTime.Now;
+            if (processKey != null) ShowLocalAchievement("game_seen");
         }
 
         if (string.IsNullOrWhiteSpace(name))
@@ -711,6 +713,13 @@ internal sealed class Overlay : Window
 
     void DisableGuide() { padUnavailable = true; }
 
+
+    static void ShowLocalAchievement(string id)
+    {
+        AchievementEvent? achievement = LocalAchievementService.Unlock(id);
+        if (achievement != null) AchievementToastWindow.ShowToast(achievement);
+    }
+
     // ───────────────────────── window behaviour ─────────────────────────
 
     void RegisterHotkeys()
@@ -731,6 +740,7 @@ internal sealed class Overlay : Window
     {
         if (animating) return;
         if (IsVisible) { CloseAnimated(); return; }
+        ShowLocalAchievement("guide_open");
         animating = true;
         IntPtr self = new WindowInteropHelper(this).Handle;
         IntPtr foreground = GetForegroundWindow();
@@ -831,6 +841,7 @@ internal sealed class Overlay : Window
                 return;
             }
             GuideTheme.SetMode(modes.SelectedIndex, custom.Text.Trim());
+            ShowLocalAchievement("theme");
             RefreshTheme();
             dialog.Close();
         };
@@ -939,7 +950,7 @@ internal sealed class Overlay : Window
         var save = new Button { Content = "Guardar nombre", Padding = new Thickness(12, 6, 12, 6), HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 10, 0, 0), MinWidth = 120 };
         save.Click += (_, _) =>
         {
-            try { WindowsProfileService.SetDisplayName(nameBox.Text); RefreshProfileHeader(); Refresh(); editor.Close(); }
+            try { WindowsProfileService.SetDisplayName(nameBox.Text); ShowLocalAchievement("profile"); RefreshProfileHeader(); Refresh(); editor.Close(); }
             catch (Exception ex) { MessageBox.Show(editor, ex.Message, "Perfil", MessageBoxButton.OK, MessageBoxImage.Warning); }
         };
         layout.Children.Add(save);
