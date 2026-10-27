@@ -92,3 +92,18 @@ The GitHub Actions artifact `BladesOverlay-Windows-x64` contains both published 
 - **Test bridge and toast:** implemented as the first integration boundary.
 - **Steam / Epic / Xbox:** not yet wired to real provider callbacks. Each platform needs a supported event source; an ordinary desktop app cannot safely assume it can intercept every other app's private notification window.
 - **RetroAchievements:** per-user API credentials and real unlock polling are not yet implemented. API keys must remain private and should never be committed to the repository. See the [official API guide](https://api-docs.retroachievements.org/getting-started.html).
+
+
+## Logros locales del Guide
+
+El overlay incluye un primer catálogo de hitos locales inspirado en la era Xbox 360. Se desbloquean automáticamente al realizar acciones detectables dentro del propio overlay y se guardan en `%LOCALAPPDATA%\GamesForWindowsLIVE2026\Achievements.json`.
+
+| Logro | G | Condición |
+|---|---:|---|
+| ¡Bienvenida al Guide! | 5 | Primera ejecución del overlay |
+| De vuelta al 2007 | 10 | Abrir el Guide por primera vez |
+| ¡A jugar! | 10 | Detectar una ventana de juego por primera vez |
+| Mi identidad, mi perfil | 5 | Guardar el perfil local |
+| A mi manera | 5 | Guardar un tema del Guide |
+
+Estos son logros locales de la aplicación, no logros oficiales de Xbox LIVE ni sincronizados con Steam o Epic. El catálogo es una primera versión; los hitos se ampliarán junto con la detección de eventos y la pantalla de colección de logros.
