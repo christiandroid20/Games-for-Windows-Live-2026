@@ -107,3 +107,20 @@ El overlay incluye un primer catálogo de hitos locales inspirado en la era Xbox
 | A mi manera | 5 | Guardar un tema del Guide |
 
 Estos son logros locales de la aplicación, no logros oficiales de Xbox LIVE ni sincronizados con Steam o Epic. El catálogo es una primera versión; los hitos se ampliarán junto con la detección de eventos y la pantalla de colección de logros.
+
+
+## Catálogo de juegos y metadatos de logros
+
+Se añadió `Achievements/RawgCatalogProvider.cs`, un proveedor opcional para consultar el catálogo RAWG:
+
+- Buscar juegos por nombre.
+- Consultar metadatos de logros por ID de RAWG (nombre, descripción, imagen y porcentaje global si está disponible).
+- Guardar una caché local de siete días para reducir solicitudes.
+- Guardar la clave API del usuario en `%LOCALAPPDATA%\\GamesForWindowsLIVE2026\\providers.json`; la clave no debe añadirse al repositorio.
+- Si la API no está configurada o falla, el catálogo local y el Guide deben poder seguir funcionando.
+
+RAWG requiere una clave API y atribución visible cuando se usan sus datos o imágenes. Revisa sus condiciones antes de distribuir la aplicación: https://rawg.io/apidocs y https://rawg.io/tos_api.
+
+**Límite actual:** el proveedor RAWG ya está creado, pero todavía no está conectado a una pantalla de búsqueda/configuración ni informa desbloqueos personales. Sus porcentajes son estadísticas globales, no el progreso de Christy. Steam, Epic, Xbox y RetroAchievements aún necesitan adaptadores independientes para consultar o recibir desbloqueos reales. No se debe pintar un logro como desbloqueado solo porque aparezca en el catálogo.
+
+La pantalla de colección completa queda pendiente de la captura de referencia de Blades para ajustar con precisión el diseño. El Guide compacto no recibirá nuevas animaciones de apertura/cierre.
