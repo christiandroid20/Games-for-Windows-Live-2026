@@ -104,9 +104,9 @@ La clave nunca debe añadirse a Git. RAWG puede no tener todos los juegos ni tod
 | Guide compacto con navegación y temas | Existe código; validar compilación y funcionamiento en cada equipo |
 | Persistencia del pequeño catálogo local de logros del overlay | Implementada en código |
 | Toast de logros mediante puente local de named pipe | Implementado como frontera de integración; no prueba integración con tiendas |
-| Proveedor de metadatos RAWG | Código añadido; requiere clave y aún no está conectado a la interfaz |
+| Proveedor de metadatos RAWG | Código añadido; requiere clave y aún no está conectado a la interfaz |\n| Cliente API de RetroAchievements | Código añadido para catálogo por ID de sistema y progreso de usuario; requiere usuario/clave API y aún no está conectado a la interfaz ni validado en ejecución |
 | Catálogo completo de emuladores/juegos sincronizado automáticamente | No implementado |
-| RetroAchievements: login/API, consulta de progreso y eventos de desbloqueo | No implementado |
+| RetroAchievements: cliente API de catálogo por sistema y consulta de progreso del usuario | Cliente API añadido en `Achievements/RetroAchievementsCatalogProvider.cs`; todavía no está conectado a la interfaz ni verificado contra una cuenta real |\n| RetroAchievements: notificaciones en vivo de desbloqueos | No implementado; consultar progreso no equivale a recibir eventos en vivo |
 | Steam: lectura real de logros y notificaciones | No implementado |
 | Epic/EOS: lectura real de logros y notificaciones | No implementado |
 | GOG, Xbox, EA, Ubisoft, Battle.net y Microsoft Store | No implementado |
