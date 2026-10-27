@@ -434,10 +434,16 @@ internal sealed class Overlay : Window
 
     UIElement ListItem(string name, string detail, bool selected, int index)
     {
-        var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        copy.Children.Add(GuideUi.Text(name, 30));
-        if (!string.IsNullOrWhiteSpace(detail)) copy.Children.Add(GuideUi.Text(detail, 18, "#5A4A10"));
-        var item = GuideUi.Row(copy, 76, selected);
+        var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(2, 5, 2, 5) };
+        copy.Children.Add(GuideUi.Text(name, 28));
+        if (!string.IsNullOrWhiteSpace(detail))
+        {
+            var subtitle = GuideUi.Text(detail, 17, "#5A4A10");
+            subtitle.Margin = new Thickness(0, 5, 0, 0);
+            copy.Children.Add(subtitle);
+        }
+        var item = GuideUi.Row(copy, 84, selected);
+        item.Margin = new Thickness(0, 0, 0, 5);
         item.MouseLeftButtonUp += (_, _) => Pick(index, 0);
         return item;
     }
