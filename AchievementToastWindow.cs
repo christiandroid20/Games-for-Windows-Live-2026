@@ -1,55 +1,131 @@
 using System;
+using System.IO;
+using System.Media;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 
 internal sealed class AchievementToastWindow : Window
 {
     static AchievementToastWindow? current;
     readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(6) };
+    readonly TranslateTransform slide = new(0, 18);
 
     AchievementToastWindow(AchievementEvent achievement)
     {
         Title = "Logro desbloqueado";
-        Width = 420; Height = 112;
-        WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize;
-        AllowsTransparency = true; Background = Brushes.Transparent;
-        Topmost = true; ShowInTaskbar = false; ShowActivated = false;
+        Width = 440;
+        Height = 108;
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        AllowsTransparency = true;
+        Background = Brushes.Transparent;
+        Topmost = true;
+        ShowInTaskbar = false;
+        ShowActivated = false;
         WindowStartupLocation = WindowStartupLocation.Manual;
-        Left = SystemParameters.WorkArea.Right - Width - 28;
-        Top = SystemParameters.WorkArea.Bottom - Height - 34;
 
-        var root = new Border
+        // Xbox 360-era toast, anchored to the bottom center as requested.
+        Left = SystemParameters.WorkArea.Left + (SystemParameters.WorkArea.Width - Width) / 2;
+        Top = SystemParameters.WorkArea.Bottom - Height - 30;
+
+        var panel = new Border
         {
-            CornerRadius = new CornerRadius(0),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(222, 190, 73)),
-            BorderThickness = new Thickness(1.5),
-            Background = new LinearGradientBrush(Color.FromRgb(47, 49, 49), Color.FromRgb(17, 18, 18), 90),
-            Padding = new Thickness(16)
+            Padding = new Thickness(15, 12, 18, 12),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(101, 123, 104)),
+            Background = new LinearGradientBrush(
+                Color.FromRgb(47, 54, 49), Color.FromRgb(19, 23, 21), 90),
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = Colors.Black, BlurRadius = 18, ShadowDepth = 3, Opacity = .7
+            },
+            RenderTransform = slide
         };
+
         var layout = new Grid();
-        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(62) });
+        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(68) });
         layout.ColumnDefinitions.Add(new ColumnDefinition());
-        var badge = new Border
-        {
-            Width = 48, Height = 48, CornerRadius = new CornerRadius(0),
-            BorderThickness = new Thickness(2), BorderBrush = new SolidColorBrush(Color.FromRgb(224, 197, 91)),
-            Background = new LinearGradientBrush(Color.FromRgb(240, 224, 158), Color.FromRgb(127, 105, 37), 45),
-            Child = new TextBlock { Text = "G", FontSize = 32, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(45, 45, 39)), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center }
-        };
-        Grid.SetColumn(badge, 0); layout.Children.Add(badge);
+        layout.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        text.Children.Add(new TextBlock { Text = "LOGRO DESBLOQUEADO", FontSize = 10, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(195, 195, 187)), Margin = new Thickness(0, 0, 0, 2) });
-        text.Children.Add(new TextBlock { Text = achievement.Title, FontSize = 15, FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis });
-        text.Children.Add(new TextBlock { Text = achievement.Game + (achievement.Points > 0 ? "    " + achievement.Points + " G" : ""), FontSize = 11, Foreground = new SolidColorBrush(Color.FromRgb(202, 202, 194)), Margin = new Thickness(0, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis });
-        text.Children.Add(new TextBlock { Text = achievement.Description, FontSize = 10, Foreground = new SolidColorBrush(Color.FromRgb(220, 220, 214)), TextTrimming = TextTrimming.CharacterEllipsis });
-        Grid.SetColumn(text, 1); layout.Children.Add(text);
-        root.Child = layout; Content = root;
-        timer.Tick += (_, _) => Close();
-        Closed += (_, _) => { timer.Stop(); if (ReferenceEquals(current, this)) current = null; };
+        var orb = new Grid { Width = 54, Height = 54, VerticalAlignment = VerticalAlignment.Center };
+        orb.Children.Add(new Ellipse
+        {
+            Fill = new LinearGradientBrush(Color.FromRgb(174, 220, 112), Color.FromRgb(44, 107, 43), 35),
+            Stroke = new SolidColorBrush(Color.FromRgb(203, 235, 161)),
+            StrokeThickness = 1.2
+        });
+        orb.Children.Add(new Ellipse
+        {
+            Margin = new Thickness(5),
+            Fill = new LinearGradientBrush(Color.FromArgb(110, 255, 255, 255), Color.FromArgb(0, 255, 255, 255), 90)
+        });
+        var glyph = new TextBlock
+        {
+            Text = "✦", FontSize = 28, FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(Color.FromRgb(245, 255, 222)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        orb.Children.Add(glyph);
+        Grid.SetColumn(orb, 0);
+        layout.Children.Add(orb);
+
+        var copy = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        copy.Children.Add(new TextBlock
+        {
+            Text = "¡LOGRO DESBLOQUEADO!",
+            FontSize = 11, FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(Color.FromRgb(190, 220, 174)),
+            Margin = new Thickness(0, 0, 0, 5)
+        });
+        copy.Children.Add(new TextBlock
+        {
+            Text = achievement.Title, FontSize = 16, FontWeight = FontWeights.SemiBold,
+            Foreground = Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis
+        });
+        copy.Children.Add(new TextBlock
+        {
+            Text = achievement.Game, FontSize = 11,
+            Foreground = new SolidColorBrush(Color.FromRgb(205, 210, 203)),
+            Margin = new Thickness(0, 3, 0, 0), TextTrimming = TextTrimming.CharacterEllipsis
+        });
+        Grid.SetColumn(copy, 1);
+        layout.Children.Add(copy);
+
+        var score = new StackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(12, 0, 0, 0)
+        };
+        score.Children.Add(new TextBlock
+        {
+            Text = achievement.Points.ToString(),
+            FontSize = 23, FontWeight = FontWeights.Light,
+            Foreground = new SolidColorBrush(Color.FromRgb(206, 232, 188)),
+            HorizontalAlignment = HorizontalAlignment.Center
+        });
+        score.Children.Add(new TextBlock
+        {
+            Text = "G", FontSize = 12, FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(Color.FromRgb(206, 232, 188)),
+            HorizontalAlignment = HorizontalAlignment.Center
+        });
+        Grid.SetColumn(score, 2);
+        layout.Children.Add(score);
+
+        panel.Child = layout;
+        Content = panel;
+        timer.Tick += (_, _) => FadeOutAndClose();
+        Closed += (_, _) =>
+        {
+            timer.Stop();
+            if (ReferenceEquals(current, this)) current = null;
+        };
     }
 
     public static void ShowToast(AchievementEvent achievement)
@@ -58,7 +134,35 @@ internal sealed class AchievementToastWindow : Window
         current = new AchievementToastWindow(achievement);
         current.Show();
         current.Opacity = 0;
-        current.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(150)));
+        current.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(220)));
+        current.slide.BeginAnimation(TranslateTransform.YProperty,
+            new DoubleAnimation(18, 0, TimeSpan.FromMilliseconds(260))
+            { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } });
+        PlayAchievementSound();
         current.timer.Start();
+    }
+
+    static void PlayAchievementSound()
+    {
+        try
+        {
+            string soundPath = Path.Combine(AppContext.BaseDirectory, "Assets", "achievement-unlocked.wav");
+            if (File.Exists(soundPath))
+            {
+                var player = new SoundPlayer(soundPath);
+                player.Play();
+            }
+        }
+        catch { /* The toast must still appear if audio is unavailable. */ }
+    }
+
+    void FadeOutAndClose()
+    {
+        timer.Stop();
+        var fade = new DoubleAnimation(Opacity, 0, TimeSpan.FromMilliseconds(260));
+        fade.Completed += (_, _) => Close();
+        BeginAnimation(OpacityProperty, fade);
+        slide.BeginAnimation(TranslateTransform.YProperty,
+            new DoubleAnimation(0, 12, TimeSpan.FromMilliseconds(260)));
     }
 }
