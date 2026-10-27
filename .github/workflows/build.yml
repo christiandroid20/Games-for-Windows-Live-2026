@@ -1,4 +1,4 @@
-name: Build BladesOverlay
+name: Build BladesOverlay and achievement test
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build:
-    name: Build WPF app
+    name: Build and package Windows x64 apps
     runs-on: windows-latest
     steps:
       - name: Checkout source
@@ -23,8 +23,15 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Restore dependencies
-        run: dotnet restore BladesOverlay.csproj
+      - name: Build BladesOverlay
+        run: dotnet publish BladesOverlay.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --output artifacts/BladesOverlay
 
-      - name: Build Release
-        run: dotnet build BladesOverlay.csproj --configuration Release --no-restore
+      - name: Build AchievementTest
+        run: dotnet publish AchievementTest/AchievementTest.csproj --configuration Release --runtime win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true --output artifacts/AchievementTest
+
+      - name: Upload Windows x64 builds
+        uses: actions/upload-artifact@v4
+        with:
+          name: BladesOverlay-Windows-x64
+          path: artifacts/
+          if-no-files-found: error
