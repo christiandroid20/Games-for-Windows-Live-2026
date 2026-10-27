@@ -146,7 +146,7 @@ internal sealed class AchievementToastWindow : Window
     {
         try
         {
-            string soundPath = Path.Combine(AppContext.BaseDirectory, "Assets", "achievement-unlocked.wav");
+            string soundPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "achievement-unlocked.wav");
             if (File.Exists(soundPath))
             {
                 var player = new SoundPlayer(soundPath);
