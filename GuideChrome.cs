@@ -13,7 +13,7 @@ using System.Windows.Media;
 internal sealed class GuideChrome : FrameworkElement
 {
     public const double DesignWidth = 830, DesignHeight = 1080;
-    public const double HeaderBottom = 141, BodyBottom = 858;
+    public const double HeaderBottom = 141, BodyBottom = 890;
 
     // x,y pairs: centre of the dark inner rule (body edge).
     static readonly Point[] InnerRule = Pts(
