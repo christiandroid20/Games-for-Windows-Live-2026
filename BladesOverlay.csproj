@@ -10,5 +10,6 @@
     <Compile Remove="AchievementTest/**/*.cs" />
     <Content Include="Assets\GamerPictures\*.png" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Downloads.zip" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="references\Logro Desbloqueado Sonido Xbox 360.wav" Link="Assets\achievement-unlocked.wav" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
