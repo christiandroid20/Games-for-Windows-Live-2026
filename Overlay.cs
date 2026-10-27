@@ -775,7 +775,7 @@ internal sealed class Overlay : Window
         var classicAvatar = new Button { Content = "Galería Xbox 360…", Padding = new Thickness(9, 5, 9, 5), Margin = new Thickness(0, 0, 6, 6) };
         classicAvatar.Click += (_, _) =>
         {
-            string gallery = Path.Combine(AppContext.BaseDirectory, "Assets", "GamerPictures");
+            string gallery = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "GamerPictures");
             if (!Directory.Exists(gallery) || !Directory.EnumerateFiles(gallery, "*.png").Any())
             {
                 MessageBox.Show(editor, "No se encontró la galería integrada. Comprueba que Assets/GamerPictures contenga los PNG.", "Galería de perfiles", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -791,7 +791,7 @@ internal sealed class Overlay : Window
             var scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
             var grid = new UniformGrid { Columns = 8 };
             string? selectedPath = null;
-            foreach (string path in Directory.EnumerateFiles(gallery, "*.png").OrderBy(x => Path.GetFileName(x), StringComparer.OrdinalIgnoreCase))
+            foreach (string path in Directory.EnumerateFiles(gallery, "*.png").OrderBy(x => System.IO.Path.GetFileName(x), StringComparer.OrdinalIgnoreCase))
             {
                 var image = new BitmapImage();
                 image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad; image.UriSource = new Uri(path, UriKind.Absolute); image.DecodePixelWidth = 64; image.EndInit(); image.Freeze();
