@@ -39,6 +39,7 @@ internal sealed class Overlay : Window
     [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr h, int id);
     [DllImport("user32.dll")] static extern bool LockWorkStation();
     [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr h);
     [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
 
@@ -56,6 +57,13 @@ internal sealed class Overlay : Window
     readonly TextBlock hintX = GuideUi.Text("Bloquear equipo", 25, "#FFFFFF");
     readonly TranslateTransform slideLeft = new(), slideRight = new();
     readonly DispatcherTimer clockTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    readonly DispatcherTimer gameTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    readonly TextBlock gameTitle = GuideUi.Text("Sin juego detectado", 25, "#FFFFFF");
+    readonly TextBlock gameElapsed = GuideUi.Text("SESIÓN 00:00:00", 18, "#D8D8D8");
+    readonly TextBlock gameState = GuideUi.Text("ESPERANDO JUEGO", 16, "#BEBEBE");
+    string? trackedProcess = null;
+    DateTime gameSessionStarted;
+
     readonly DispatcherTimer padTimer = new(DispatcherPriority.Input) { Interval = TimeSpan.FromMilliseconds(55) };
     readonly ushort[] previous = new ushort[4];
     readonly List<FileSystemInfo> browserItems = new();
@@ -93,8 +101,9 @@ internal sealed class Overlay : Window
         Closed += (_, _) => Cleanup();
 
         clockTimer.Tick += (_, _) => { clock.Text = DateTime.Now.ToString("h:mm tt"); if (GuideTheme.RefreshAccent()) RefreshTheme(); };
+        gameTimer.Tick += (_, _) => UpdateGameSession();
         padTimer.Tick += (_, _) => PollPad();
-        clockTimer.Start(); padTimer.Start();
+        clockTimer.Start(); padTimer.Start(); gameTimer.Start();
         clock.Text = DateTime.Now.ToString("h:mm tt");
         RefreshProfileHeader();
         Refresh();
@@ -218,6 +227,7 @@ internal sealed class Overlay : Window
         body.Children.Add(Community());
         body.Children.Add(PlainRow("Chat privado", 2));
         body.Children.Add(PlainRow("Configuración personal", 3));
+        body.Children.Add(GameSessionBox());
         body.Children.Add(MediaBox());
         body.Children.Add(Plate());
     }
@@ -290,6 +300,66 @@ internal sealed class Overlay : Window
         var item = GuideUi.Row(GuideUi.Text(text, 30), 62, Sel(r));
         item.MouseLeftButtonUp += (_, _) => Pick(r, 0);
         return item;
+    }
+
+    Border GameSessionBox()
+    {
+        var content = new StackPanel();
+        content.Children.Add(gameTitle);
+        content.Children.Add(gameElapsed);
+        content.Children.Add(gameState);
+        var box = GuideUi.Box(content, 82);
+        box.Padding = new Thickness(12, 7, 12, 7);
+        box.Margin = new Thickness(0, 0, 0, 10);
+        UpdateGameSession();
+        return box;
+    }
+
+    void UpdateGameSession()
+    {
+        string? name = null;
+        string? processKey = null;
+        try
+        {
+            IntPtr hwnd = GetForegroundWindow();
+            if (hwnd != IntPtr.Zero)
+            {
+                GetWindowThreadProcessId(hwnd, out uint pid);
+                if (pid != 0)
+                {
+                    using var process = System.Diagnostics.Process.GetProcessById((int)pid);
+                    string exe = process.ProcessName;
+                    string title = process.MainWindowTitle;
+                    string[] ignored = { "BladesOverlay", "explorer", "SearchHost", "StartMenuExperienceHost", "ShellExperienceHost", "dwm", "taskhostw", "RuntimeBroker", "ApplicationFrameHost", "TextInputHost", "LockApp", "SystemSettings", "Taskmgr", "chrome", "msedge", "firefox", "opera", "brave" };
+                    if (!ignored.Contains(exe, StringComparer.OrdinalIgnoreCase) &&
+                        !string.IsNullOrWhiteSpace(title) && pid != Environment.ProcessId)
+                    {
+                        name = title.Trim();
+                        processKey = pid.ToString() + ":" + exe;
+                    }
+                }
+            }
+        }
+        catch { }
+
+        if (processKey != trackedProcess)
+        {
+            trackedProcess = processKey;
+            gameSessionStarted = DateTime.Now;
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            gameTitle.Text = "Sin juego detectado";
+            gameElapsed.Text = "SESIÓN —";
+            gameState.Text = "ESPERANDO JUEGO";
+            return;
+        }
+
+        gameTitle.Text = name.Length > 42 ? name[..39] + "…" : name;
+        TimeSpan elapsed = DateTime.Now - gameSessionStarted;
+        gameElapsed.Text = $"SESIÓN {elapsed:hh\\:mm\\:ss}";
+        gameState.Text = "VENTANA ACTIVA";
     }
 
     Border MediaBox()
@@ -696,7 +766,7 @@ internal sealed class Overlay : Window
     void Cleanup()
     {
         achievementBridge.Dispose();
-        clockTimer.Stop(); padTimer.Stop();
+        clockTimer.Stop(); padTimer.Stop(); gameTimer.Stop();
         if (source != null) source.RemoveHook(Hook);
         IntPtr hwnd = new WindowInteropHelper(this).Handle;
         if (hotkey1) UnregisterHotKey(hwnd, Hotkey1);
