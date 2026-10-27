@@ -124,3 +124,8 @@ RAWG requiere una clave API y atribución visible cuando se usan sus datos o im�
 **Límite actual:** el proveedor RAWG ya está creado, pero todavía no está conectado a una pantalla de búsqueda/configuración ni informa desbloqueos personales. Sus porcentajes son estadísticas globales, no el progreso de Christy. Steam, Epic, Xbox y RetroAchievements aún necesitan adaptadores independientes para consultar o recibir desbloqueos reales. No se debe pintar un logro como desbloqueado solo porque aparezca en el catálogo.
 
 La pantalla de colección completa queda pendiente de la captura de referencia de Blades para ajustar con precisión el diseño. El Guide compacto no recibirá nuevas animaciones de apertura/cierre.
+
+
+## Compatibilidad y límites reales
+
+Antes de descargar o configurar proveedores, consulta **[Compatibilidad y límites](docs/COMPATIBILIDAD-Y-LIMITES.md)**. Documenta los sistemas y emuladores de RetroAchievements, las tiendas que ofrecen logros, requisitos, límites por juego y qué adaptadores siguen sin implementarse. Distingue entre metadatos de catálogo y seguimiento real de desbloqueos; no todos los juegos de una tienda tienen logros ni todos los juegos retro tienen un set compatible.
