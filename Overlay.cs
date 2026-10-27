@@ -132,7 +132,7 @@ internal sealed class Overlay : Window
 
         var bodyHost = new Grid { ClipToBounds = true };
         bodyHost.Children.Add(body);
-        Put(leftCanvas, bodyHost, 154, 165, 555, 695);
+        Put(leftCanvas, bodyHost, 142, 150, 575, 735);
 
         // The active tab's name runs top-to-bottom on the gold shoulder, as in the original.
         tabLabel.LayoutTransform = new RotateTransform(90);
@@ -254,8 +254,8 @@ internal sealed class Overlay : Window
         var dock = new DockPanel();
         DockPanel.SetDock(picture, Dock.Left);
         dock.Children.Add(picture); dock.Children.Add(lines);
-        var card = GuideUi.Box(dock, 121, Sel(0));
-        card.Padding = new Thickness(15); card.Margin = new Thickness(0, 0, 0, 17); card.Cursor = Cursors.Hand;
+        var card = GuideUi.Box(dock, 104, Sel(0));
+        card.Padding = new Thickness(12); card.Margin = new Thickness(0, 0, 0, 10); card.Cursor = Cursors.Hand;
         card.MouseLeftButtonUp += (_, _) => Pick(0, 0);
         return card;
     }
@@ -291,14 +291,14 @@ internal sealed class Overlay : Window
             buttons.Children.Add(button);
         }
         AddCell(grid, buttons, 0, 1);
-        var box = GuideUi.Box(grid, 116);
-        box.Padding = new Thickness(9, 0, 9, 9); box.Margin = new Thickness(0, 0, 0, 11);
+        var box = GuideUi.Box(grid, 102);
+        box.Padding = new Thickness(8, 0, 8, 7); box.Margin = new Thickness(0, 0, 0, 7);
         return box;
     }
 
     Border PlainRow(string text, int r)
     {
-        var item = GuideUi.Row(GuideUi.Text(text, 30), 62, Sel(r));
+        var item = GuideUi.Row(GuideUi.Text(text, 28), 54, Sel(r));
         item.MouseLeftButtonUp += (_, _) => Pick(r, 0);
         return item;
     }
@@ -309,9 +309,9 @@ internal sealed class Overlay : Window
         content.Children.Add(gameTitle);
         content.Children.Add(gameElapsed);
         content.Children.Add(gameState);
-        var box = GuideUi.Box(content, 82);
-        box.Padding = new Thickness(12, 7, 12, 7);
-        box.Margin = new Thickness(0, 0, 0, 10);
+        var box = GuideUi.Box(content, 70);
+        box.Padding = new Thickness(10, 5, 10, 5);
+        box.Margin = new Thickness(0, 0, 0, 7);
         UpdateGameSession();
         return box;
     }
@@ -368,7 +368,7 @@ internal sealed class Overlay : Window
     {
         string[] glyphs = { "\uE768", "\uE892", "\uE71A", "\uE893", "\uE8B1", "\uE767" }; // play, prev, stop, next, shuffle, volume
         var stack = new StackPanel();
-        var buttons = new UniformGrid { Columns = 6, Rows = 1, Height = 44, Margin = new Thickness(0, 7, 0, 0) };
+        var buttons = new UniformGrid { Columns = 6, Rows = 1, Height = 40, Margin = new Thickness(0, 5, 0, 0) };
         for (int c = 0; c < 6; c++)
         {
             int picked = c;
@@ -378,12 +378,12 @@ internal sealed class Overlay : Window
             buttons.Children.Add(button);
         }
         stack.Children.Add(buttons);
-        var music = GuideUi.Row(GuideUi.Text("Seleccionar música", 30), 60, Sel(5));
-        music.Margin = new Thickness(0, 6, 0, 0);
+        var music = GuideUi.Row(GuideUi.Text("Seleccionar música", 28), 52, Sel(5));
+        music.Margin = new Thickness(0, 4, 0, 0);
         music.MouseLeftButtonUp += (_, _) => Pick(5, 0);
         stack.Children.Add(music);
-        var box = GuideUi.Box(stack, 137);
-        box.Padding = new Thickness(9); box.Margin = new Thickness(0, 0, 0, 18);
+        var box = GuideUi.Box(stack, 119);
+        box.Padding = new Thickness(8); box.Margin = new Thickness(0, 0, 0, 10);
         return box;
     }
 
@@ -412,7 +412,7 @@ internal sealed class Overlay : Window
             line.Children.Add(orb); line.Children.Add(name);
             content = line;
         }
-        return new Border { Height = 113, Background = GuideUi.Fixed("#EEF2DD"), BorderBrush = GuideUi.Themed("#E4D483"), BorderThickness = new Thickness(1), Child = content };
+        return new Border { Height = 88, Background = GuideUi.Fixed("#EEF2DD"), BorderBrush = GuideUi.Themed("#E4D483"), BorderThickness = new Thickness(1), Child = content };
     }
 
     StackPanel Heading(string title, string? subtitle)
