@@ -73,3 +73,22 @@ The classic Xbox 360 avatar idea is feasible as an offline feature, but it is se
 ## Controller and game selection
 
 The controller provider first tries the commonly used XInputGetStateEx extension at ordinal 100, which can expose the Guide bit, then falls back to documented XInput APIs if that export is unavailable. Support depends on the XInput implementation and DS4Windows virtual controller and has not been verified on every setup. Ctrl+Alt+G remains available as a keyboard fallback. The built-in game browser lets you navigate drives and folders inside the Guide and launch .exe files without opening the Windows file picker. If HidHide hides the physical controller, raw HID detection would require allowlisting the app in HidHide; the current Guide-button path uses the virtual XInput device.
+
+
+## Achievement notification bridge (new)
+
+BladesOverlay now includes a **local-only named-pipe event bridge** and a classic-inspired achievement toast. It does not open a network port and does not pretend a test event was awarded by Steam, Epic, Xbox, or RetroAchievements.
+
+### Test the toast
+
+1. Start `BladesOverlay.exe` and leave it running.
+2. Run `AchievementTest.exe`. It sends one clearly labeled local test event through the Windows named pipe `BladesOverlay.AchievementEvents`.
+3. The overlay displays a toast with source, game, title, description, and points, then dismisses it automatically.
+
+The GitHub Actions artifact `BladesOverlay-Windows-x64` contains both published apps. Download and extract the artifact, then launch the overlay first.
+
+### Integration status
+
+- **Test bridge and toast:** implemented as the first integration boundary.
+- **Steam / Epic / Xbox:** not yet wired to real provider callbacks. Each platform needs a supported event source; an ordinary desktop app cannot safely assume it can intercept every other app's private notification window.
+- **RetroAchievements:** per-user API credentials and real unlock polling are not yet implemented. API keys must remain private and should never be committed to the repository. See the [official API guide](https://api-docs.retroachievements.org/getting-started.html).
