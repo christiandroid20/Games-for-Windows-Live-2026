@@ -144,7 +144,7 @@ internal sealed class Overlay : Window
         var left = new StackPanel();
         left.Children.Add(GuideUi.Hint("Y", "#E8C21A", GuideUi.Text("Cerrar Guide", 25), true));
         left.Children.Add(GuideUi.Hint("X", "#2C6FB0", hintX, true));
-        Put(leftCanvas, left, 154, 876);
+        Put(leftCanvas, left, 154, 902);
 
         var right = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right };
         var back = GuideUi.Hint("B", "#C0392B", GuideUi.Text("Atrás", 25), false);
@@ -153,7 +153,7 @@ internal sealed class Overlay : Window
         right.Children.Add(back); right.Children.Add(pick);
         var rightHost = new Grid();
         rightHost.Children.Add(right);
-        Put(leftCanvas, rightHost, 398, 878, 313);
+        Put(leftCanvas, rightHost, 398, 904, 313);
 
         var leftBox = new Viewbox
         {
@@ -366,7 +366,7 @@ internal sealed class Overlay : Window
     {
         string[] glyphs = { "\uE768", "\uE892", "\uE71A", "\uE893", "\uE8B1", "\uE767" }; // play, prev, stop, next, shuffle, volume
         var stack = new StackPanel();
-        var buttons = new UniformGrid { Columns = 6, Rows = 1, Height = 52 };
+        var buttons = new UniformGrid { Columns = 6, Rows = 1, Height = 44, Margin = new Thickness(0, 7, 0, 0) };
         for (int c = 0; c < 6; c++)
         {
             int picked = c;
