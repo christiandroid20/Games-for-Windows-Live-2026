@@ -153,7 +153,7 @@ internal sealed class Overlay : Window
         right.Children.Add(back); right.Children.Add(pick);
         var rightHost = new Grid();
         rightHost.Children.Add(right);
-        Put(leftCanvas, rightHost, 398, 904, 313);
+        Put(leftCanvas, rightHost, 455, 904, 256);
 
         var leftBox = new Viewbox
         {
