@@ -6,9 +6,8 @@ using System.Text.RegularExpressions;
 using System.Windows.Media;
 
 /// <summary>
-/// Persisted Guide appearance. Mode 0 is the classic Xbox 360 gold and is never altered.
-/// Modes 1-3 re-colour the gold chrome through <see cref="Tint"/>, keeping lightness and
-/// relative saturation so contrast and selection states stay readable.
+/// Persisted Guide appearance. Mode 0 preserves the original gold; mode 4 recreates the metallic grey Guide.
+/// Modes 1-3 re-colour the chrome through <see cref="Tint"/>, keeping lightness and relative saturation.
 /// </summary>
 internal static class GuideTheme
 {
@@ -28,7 +27,7 @@ internal static class GuideTheme
     private static string lastSystemAccent = ReadWindowsAccent();
     private static string currentAccent = CalculateAccent();
 
-    // 0 = classic, 1 = Windows accent, 2 = random, 3 = custom.
+    // 0 = classic gold, 1 = Windows accent, 2 = random, 3 = custom, 4 = metallic grey.
     public static int Mode => settings.Mode;
     public static string CustomAccent => settings.CustomAccent;
     public static string CurrentAccent => currentAccent;
@@ -38,6 +37,12 @@ internal static class GuideTheme
     {
         var color = (Color)ColorConverter.ConvertFromString(hex);
         if (settings.Mode == 0) return color;
+        if (settings.Mode == 4)
+        {
+            // Neutral metallic finish: preserve each source colour's perceived brightness.
+            byte grey = (byte)Math.Clamp(Math.Round(color.R * 0.2126 + color.G * 0.7152 + color.B * 0.0722), 0, 255);
+            return Color.FromArgb(color.A, grey, grey, grey);
+        }
         var accent = (Color)ColorConverter.ConvertFromString(currentAccent);
         ToHsl(accent, out double hue, out double accentSat, out _);
         ToHsl(color, out _, out double sat, out double light);
@@ -47,7 +52,7 @@ internal static class GuideTheme
 
     public static void SetMode(int mode, string customAccent)
     {
-        settings.Mode = Math.Clamp(mode, 0, 3);
+        settings.Mode = Math.Clamp(mode, 0, 4);
         if (!string.IsNullOrWhiteSpace(customAccent) && HexColor.IsMatch(customAccent))
             settings.CustomAccent = customAccent.ToUpperInvariant();
         currentAccent = settings.Mode == 2 ? RandomAccent() : CalculateAccent();
@@ -142,7 +147,7 @@ internal static class GuideTheme
                 if (parsed != null)
                 {
                     // A hand-edited or damaged file must never stop the Guide from starting.
-                    parsed.Mode = Math.Clamp(parsed.Mode, 0, 3);
+                    parsed.Mode = Math.Clamp(parsed.Mode, 0, 4);
                     if (string.IsNullOrWhiteSpace(parsed.CustomAccent) || !HexColor.IsMatch(parsed.CustomAccent))
                         parsed.CustomAccent = "#6ABF40";
                     return parsed;
