@@ -740,11 +740,12 @@ internal sealed class Overlay : Window
         modes.Items.Add("Igual al sistema (color de énfasis)");
         modes.Items.Add("Aleatorio al abrir");
         modes.Items.Add("Personalizado");
+        modes.Items.Add("Gris original metálico (Xbox 360)");
         modes.SelectedIndex = GuideTheme.Mode;
         layout.Children.Add(modes);
         var custom = new TextBox { Text = GuideTheme.CustomAccent, Margin = new Thickness(0, 0, 0, 10), Padding = new Thickness(6), FontSize = 14, ToolTip = "Color hexadecimal, por ejemplo #FF6A00" };
         layout.Children.Add(custom);
-        layout.Children.Add(GuideUi.Text("El modo clásico conserva el dorado original. Los demás modos solo cambian el matiz.", 11, "#555555"));
+        layout.Children.Add(GuideUi.Text("El modo gris recrea el acabado metálico neutro; el clásico conserva el dorado original.", 11, "#555555"));
         var save = new Button { Content = "Guardar tema", Padding = new Thickness(10, 7, 10, 7), Margin = new Thickness(0, 12, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
         save.Click += (_, _) =>
         {
