@@ -13,7 +13,7 @@ internal static class GuideTheme
 {
     private sealed class Settings
     {
-        public int Mode { get; set; } = 0;
+        public int Mode { get; set; } = 4;
         public string CustomAccent { get; set; } = "#6ABF40";
     }
 
@@ -27,7 +27,7 @@ internal static class GuideTheme
     private static string lastSystemAccent = ReadWindowsAccent();
     private static string currentAccent = CalculateAccent();
 
-    // 0 = classic gold, 1 = Windows accent, 2 = random, 3 = custom, 4 = metallic grey.
+    // 0 = classic gold, 1 = Windows accent, 2 = random, 3 = custom, 4 = metallic grey (default).
     public static int Mode => settings.Mode;
     public static string CustomAccent => settings.CustomAccent;
     public static string CurrentAccent => currentAccent;
@@ -155,7 +155,7 @@ internal static class GuideTheme
             }
         }
         catch { }
-        return new Settings();
+        return new Settings { Mode = 4 };
     }
 
     private static void Save()
