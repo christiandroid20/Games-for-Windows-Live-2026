@@ -29,7 +29,7 @@ internal static class GuideUi
 
     public static TextBlock Text(string s, double size, string color = "#1B1709", FontWeight? weight = null) => new()
     {
-        Text = s, FontSize = size, Foreground = Fixed(color), FontWeight = weight ?? FontWeights.Normal,
+        Text = s, FontSize = size, Foreground = Fixed(color), FontWeight = weight ?? FontWeights.Bold,
         FontFamily = Sans, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis
     };
 
