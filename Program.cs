@@ -36,7 +36,41 @@ internal static class Program
     [STAThread]
     static void Main()
     {
+        // Persist startup/runtime failures so a disappearing overlay is diagnosable
+        // even when launched from Explorer without a console.
+        string logPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "GamesForWindowsLIVE2026", "crash.log");
+        void LogException(string source, Exception ex)
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+                File.AppendAllText(logPath,
+                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {source}{Environment.NewLine}{ex}{Environment.NewLine}{new string('-', 72)}{Environment.NewLine}");
+            }
+            catch { }
+        }
+
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+        app.DispatcherUnhandledException += (_, e) =>
+        {
+            LogException("WPF DispatcherUnhandledException", e.Exception);
+            e.Handled = true;
+            MessageBox.Show(
+                $"Ocurrió un error en el overlay. El detalle se guardó en:{Environment.NewLine}{logPath}{Environment.NewLine}{Environment.NewLine}{e.Exception.Message}",
+                "Games for Windows LIVE 2026", MessageBoxButton.OK, MessageBoxImage.Error);
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            if (e.ExceptionObject is Exception ex) LogException("AppDomain UnhandledException", ex);
+            else LogException("AppDomain UnhandledException", new Exception(e.ExceptionObject?.ToString() ?? "Error desconocido"));
+        };
+        TaskScheduler.UnobservedTaskException += (_, e) =>
+        {
+            LogException("TaskScheduler UnobservedTaskException", e.Exception);
+            e.SetObserved();
+        };
         Overlay? overlay = null;
         var blades = new[]
         {
