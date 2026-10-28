@@ -58,9 +58,9 @@ internal sealed class Overlay : Window
     readonly TranslateTransform slideLeft = new(), slideRight = new();
     readonly DispatcherTimer clockTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     readonly DispatcherTimer gameTimer = new() { Interval = TimeSpan.FromSeconds(1) };
-    readonly TextBlock gameTitle = GuideUi.Text("Sin juego detectado", 25, "#FFFFFF");
-    readonly TextBlock gameElapsed = GuideUi.Text("SESIÓN 00:00:00", 18, "#D8D8D8");
-    readonly TextBlock gameState = GuideUi.Text("ESPERANDO JUEGO", 16, "#BEBEBE");
+    TextBlock gameTitle = GuideUi.Text("Sin juego detectado", 25, "#FFFFFF");
+    TextBlock gameElapsed = GuideUi.Text("SESIÓN 00:00:00", 18, "#D8D8D8");
+    TextBlock gameState = GuideUi.Text("ESPERANDO JUEGO", 16, "#BEBEBE");
     string? trackedProcess = null;
     DateTime gameSessionStarted;
 
@@ -305,6 +305,11 @@ internal sealed class Overlay : Window
 
     Border GameSessionBox()
     {
+        // Refresh rebuilds the player page. Create fresh TextBlocks each time because
+        // WPF elements cannot be logical children of two StackPanels.
+        gameTitle = GuideUi.Text("Sin juego detectado", 25, "#FFFFFF");
+        gameElapsed = GuideUi.Text("SESIÓN 00:00:00", 18, "#D8D8D8");
+        gameState = GuideUi.Text("ESPERANDO JUEGO", 16, "#BEBEBE");
         var content = new StackPanel();
         content.Children.Add(gameTitle);
         content.Children.Add(gameElapsed);
